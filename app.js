@@ -2,8 +2,22 @@
   const WORLD_W = 600;
   const WORLD_H = 600;
   const BALL_RADIUS = 16;
-  const START = { x: 118, y: 475 };
-  const DOOR = { x: 105, y: 105 };
+
+  const ROOMS = {
+    A: {
+      label: 'ROOM A',
+      start: { x: 118, y: 475 },
+      angle: 0,
+      exit: { x: 455, y: 132, radius: 31, target: 'B' }
+    },
+    B: {
+      label: 'ROOM B',
+      /* Tube B points left in room coordinates. Rotating the room -90° makes that direction screen-down. */
+      start: { x: 495, y: 115 },
+      angle: -Math.PI / 2,
+      exit: null
+    }
+  };
 
   const gameEl = document.getElementById('game');
   const levelSvg = document.getElementById('levelSvg');
@@ -15,12 +29,14 @@
 
   const engine = Engine.create({ gravity: { x: 0, y: 1, scale: 0.0014 } });
   const world = engine.world;
+  const pointers = new Map();
+
+  let currentRoom = 'A';
   let worldAngle = 0;
   let startGestureAngle = null;
   let startWorldAngle = 0;
-  let level = 1;
   let transitioning = false;
-  const pointers = new Map();
+  let roomBodies = [];
 
   const degToRad = d => d * Math.PI / 180;
   function normalizeAngle(rad) {
@@ -56,21 +72,63 @@
     });
   }
 
-  const platforms = [...document.querySelectorAll('[data-collider="rect"]')].map(createPlatform);
   const walls = [
-    Bodies.rectangle(WORLD_W / 2, -18, WORLD_W + 80, 36, { isStatic: true, restitution: .35 }),
-    Bodies.rectangle(WORLD_W / 2, WORLD_H + 18, WORLD_W + 80, 36, { isStatic: true, restitution: .35 }),
-    Bodies.rectangle(-18, WORLD_H / 2, 36, WORLD_H + 80, { isStatic: true, restitution: .35 }),
-    Bodies.rectangle(WORLD_W + 18, WORLD_H / 2, 36, WORLD_H + 80, { isStatic: true, restitution: .35 })
+    Bodies.rectangle(WORLD_W / 2, -18, WORLD_W + 80, 36, { isStatic: true, restitution: .3 }),
+    Bodies.rectangle(WORLD_W / 2, WORLD_H + 18, WORLD_W + 80, 36, { isStatic: true, restitution: .3 }),
+    Bodies.rectangle(-18, WORLD_H / 2, 36, WORLD_H + 80, { isStatic: true, restitution: .3 }),
+    Bodies.rectangle(WORLD_W + 18, WORLD_H / 2, 36, WORLD_H + 80, { isStatic: true, restitution: .3 })
   ];
 
-  const ball = Bodies.circle(START.x, START.y, BALL_RADIUS, {
+  const ball = Bodies.circle(ROOMS.A.start.x, ROOMS.A.start.y, BALL_RADIUS, {
     restitution: .28,
     friction: .02,
     frictionAir: .003,
     density: .0024
   });
-  Composite.add(world, [...platforms, ...walls, ball]);
+  Composite.add(world, [...walls, ball]);
+
+  function rebuildRoomPhysics(roomId) {
+    if (roomBodies.length) Composite.remove(world, roomBodies);
+    roomBodies = [...document.querySelectorAll(`[data-room-collider="${roomId}"]`)].map(createPlatform);
+    Composite.add(world, roomBodies);
+  }
+
+  function showRoom(roomId) {
+    document.querySelectorAll('[data-room]').forEach(el => {
+      el.style.display = el.getAttribute('data-room') === roomId ? '' : 'none';
+    });
+  }
+
+  function placeBall(position) {
+    Body.setPosition(ball, position);
+    Body.setVelocity(ball, { x: 0, y: 0 });
+    Body.setAngularVelocity(ball, 0);
+  }
+
+  function enterRoom(roomId) {
+    currentRoom = roomId;
+    const room = ROOMS[roomId];
+    showRoom(roomId);
+    rebuildRoomPhysics(roomId);
+    levelLabel.textContent = room.label;
+    placeBall(room.start);
+    setWorldAngle(room.angle);
+    transitioning = false;
+    statusEl.textContent = roomId === 'A' ? 'Find the tube.' : 'The tube has dropped you into Room B.';
+  }
+
+  function updateTubeState() {
+    if (transitioning) return;
+    const exit = ROOMS[currentRoom].exit;
+    if (!exit) return;
+    const distance = Vector.magnitude(Vector.sub(ball.position, exit));
+    if (distance < exit.radius) {
+      transitioning = true;
+      statusEl.textContent = 'Through the tube…';
+      Body.setVelocity(ball, { x: 0, y: 0 });
+      setTimeout(() => enterRoom(exit.target), 260);
+    }
+  }
 
   const pixiApp = new PIXI.Application();
   let ballGraphic;
@@ -109,34 +167,8 @@
     glowGraphic.scale.set(sx, sy);
   }
 
-  function resetBall() {
-    Body.setPosition(ball, START);
-    Body.setVelocity(ball, { x: 0, y: 0 });
-    Body.setAngularVelocity(ball, 0);
-  }
-
-  function startLevel(nextLevel) {
-    level = nextLevel;
-    levelLabel.textContent = `LEVEL ${level}`;
-    transitioning = false;
-    resetBall();
-    setWorldAngle(0);
-    statusEl.textContent = 'Reach the door.';
-  }
-
-  function updateDoorState() {
-    if (transitioning) return;
-    const distance = Vector.magnitude(Vector.sub(ball.position, DOOR));
-    if (distance < 28) {
-      transitioning = true;
-      statusEl.textContent = `Level ${level} complete ✦`;
-      Body.setVelocity(ball, { x: 0, y: 0 });
-      setTimeout(() => startLevel(level + 1), 500);
-    }
-  }
-
   function resetGame() {
-    startLevel(level);
+    enterRoom(currentRoom);
   }
 
   gameEl.addEventListener('pointerdown', e => {
@@ -145,7 +177,7 @@
     if (pointers.size === 2) {
       startGestureAngle = angleBetweenPointers();
       startWorldAngle = worldAngle;
-      statusEl.textContent = 'Rotate the world and reach the door.';
+      statusEl.textContent = 'Rotate the room and use gravity.';
     }
   });
 
@@ -177,12 +209,12 @@
     lastTime = now;
     Engine.update(engine, dt);
     updateBallGraphics();
-    updateDoorState();
+    updateTubeState();
     requestAnimationFrame(frame);
   }
 
   initPixi().then(() => {
-    startLevel(1);
+    enterRoom('A');
     updateBallGraphics();
     requestAnimationFrame(frame);
   }).catch(err => {
