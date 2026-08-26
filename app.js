@@ -9,7 +9,7 @@
   };
 
   const gameEl = document.getElementById('game');
-  const levelSvg = document.getElementById('levelSvg');
+  const worldLayer = document.getElementById('worldLayer');
   const ballSvg = document.getElementById('ballSvg');
   const resetBtn = document.getElementById('resetBtn');
   const statusEl = document.getElementById('status');
@@ -18,11 +18,10 @@
 
   const engine = Engine.create({ gravity: { x: 0, y: 1, scale: 0.0014 } });
   const world = engine.world;
-
   let currentRoom = 'A';
   let worldAngle = 0;
-  let gestureStartAngle = null;
-  let gestureStartWorldAngle = 0;
+  let startGestureAngle = null;
+  let startWorldAngle = 0;
   let transitioning = false;
   let roomBodies = [];
 
@@ -34,16 +33,14 @@
     return rad;
   }
 
-  function touchAngle(touches) {
+  function angleFromTouches(touches) {
     if (touches.length < 2) return null;
-    const a = touches[0];
-    const b = touches[1];
-    return Math.atan2(b.clientY - a.clientY, b.clientX - a.clientX);
+    return Math.atan2(touches[1].clientY - touches[0].clientY, touches[1].clientX - touches[0].clientX);
   }
 
   function setWorldAngle(angle) {
     worldAngle = normalizeAngle(angle);
-    levelSvg.style.transform = `translate(-50%, -50%) rotate(${worldAngle}rad)`;
+    worldLayer.setAttribute('transform', `rotate(${worldAngle * 180 / Math.PI} 300 300)`);
     engine.gravity.x = Math.sin(worldAngle);
     engine.gravity.y = Math.cos(worldAngle);
   }
@@ -129,39 +126,37 @@
     ballSvg.setAttribute('transform', `translate(${ball.position.x} ${ball.position.y}) rotate(${ball.angle * 180 / Math.PI})`);
   }
 
-  function resetGame() {
-    enterRoom(currentRoom);
-  }
+  function resetGame() { enterRoom(currentRoom); }
 
   gameEl.addEventListener('touchstart', e => {
-    if (e.touches.length >= 2) {
+    if (e.touches.length === 2) {
       e.preventDefault();
-      gestureStartAngle = touchAngle(e.touches);
-      gestureStartWorldAngle = worldAngle;
+      startGestureAngle = angleFromTouches(e.touches);
+      startWorldAngle = worldAngle;
       statusEl.textContent = 'Rotate the room and use gravity.';
     }
   }, { passive: false });
 
   gameEl.addEventListener('touchmove', e => {
-    if (e.touches.length >= 2 && gestureStartAngle !== null) {
+    if (e.touches.length === 2 && startGestureAngle !== null) {
       e.preventDefault();
-      const current = touchAngle(e.touches);
-      if (current !== null) {
-        const delta = normalizeAngle(current - gestureStartAngle);
-        setWorldAngle(gestureStartWorldAngle + delta);
-      }
+      const current = angleFromTouches(e.touches);
+      if (current !== null) setWorldAngle(startWorldAngle + normalizeAngle(current - startGestureAngle));
     }
   }, { passive: false });
 
-  function endTouch(e) {
+  gameEl.addEventListener('touchend', e => {
     if (e.touches.length < 2) {
-      gestureStartAngle = null;
-      gestureStartWorldAngle = worldAngle;
+      startGestureAngle = null;
+      startWorldAngle = worldAngle;
     }
-  }
+  });
 
-  gameEl.addEventListener('touchend', endTouch, { passive: false });
-  gameEl.addEventListener('touchcancel', endTouch, { passive: false });
+  gameEl.addEventListener('touchcancel', () => {
+    startGestureAngle = null;
+    startWorldAngle = worldAngle;
+  });
+
   resetBtn.addEventListener('click', resetGame);
 
   let lastTime = performance.now();
