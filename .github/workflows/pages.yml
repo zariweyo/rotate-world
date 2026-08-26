@@ -22,6 +22,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Inject build commit
+        shell: bash
+        run: sed -i "s/__BUILD_COMMIT__/${GITHUB_SHA::7}/g" index.html
+
       - name: Configure Pages
         uses: actions/configure-pages@v5
 
