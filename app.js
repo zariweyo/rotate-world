@@ -4,19 +4,8 @@
   const BALL_RADIUS = 16;
 
   const ROOMS = {
-    A: {
-      label: 'ROOM A',
-      start: { x: 118, y: 475 },
-      angle: 0,
-      exit: { x: 455, y: 132, radius: 31, target: 'B' }
-    },
-    B: {
-      label: 'ROOM B',
-      /* Tube B points left in room coordinates. Rotating the room -90° makes that direction screen-down. */
-      start: { x: 495, y: 115 },
-      angle: -Math.PI / 2,
-      exit: null
-    }
+    A: { label: 'ROOM A', start: { x: 118, y: 475 }, angle: 0, exit: { x: 455, y: 132, radius: 31, target: 'B' } },
+    B: { label: 'ROOM B', start: { x: 495, y: 115 }, angle: -Math.PI / 2, exit: null }
   };
 
   const gameEl = document.getElementById('game');
@@ -30,7 +19,6 @@
   const engine = Engine.create({ gravity: { x: 0, y: 1, scale: 0.0014 } });
   const world = engine.world;
   const pointers = new Map();
-
   let currentRoom = 'A';
   let worldAngle = 0;
   let startGestureAngle = null;
@@ -44,7 +32,6 @@
     while (rad < -Math.PI) rad += Math.PI * 2;
     return rad;
   }
-
   function angleBetweenPointers() {
     const p = [...pointers.values()];
     return p.length < 2 ? null : Math.atan2(p[1].y - p[0].y, p[1].x - p[0].x);
@@ -52,7 +39,9 @@
 
   function setWorldAngle(angle) {
     worldAngle = normalizeAngle(angle);
-    levelSvg.style.transform = `translate(-50%, -50%) rotate(${worldAngle}rad)`;
+    const transform = `translate(-50%, -50%) rotate(${worldAngle}rad)`;
+    levelSvg.style.transform = transform;
+    pixiHost.style.transform = transform;
     engine.gravity.x = Math.sin(worldAngle);
     engine.gravity.y = Math.cos(worldAngle);
   }
@@ -80,17 +69,18 @@
   ];
 
   const ball = Bodies.circle(ROOMS.A.start.x, ROOMS.A.start.y, BALL_RADIUS, {
-    restitution: .28,
-    friction: .02,
+    restitution: .22,
+    friction: .03,
+    frictionStatic: .4,
     frictionAir: .003,
     density: .0024
   });
   Composite.add(world, [...walls, ball]);
 
   function rebuildRoomPhysics(roomId) {
-    if (roomBodies.length) Composite.remove(world, roomBodies);
+    roomBodies.forEach(body => Composite.remove(world, body));
     roomBodies = [...document.querySelectorAll(`[data-room-collider="${roomId}"]`)].map(createPlatform);
-    Composite.add(world, roomBodies);
+    roomBodies.forEach(body => Composite.add(world, body));
   }
 
   function showRoom(roomId) {
@@ -100,7 +90,7 @@
   }
 
   function placeBall(position) {
-    Body.setPosition(ball, position);
+    Body.setPosition(ball, { x: position.x, y: position.y });
     Body.setVelocity(ball, { x: 0, y: 0 });
     Body.setAngularVelocity(ball, 0);
   }
@@ -136,40 +126,31 @@
 
   async function initPixi() {
     await pixiApp.init({
-      resizeTo: pixiHost,
+      width: WORLD_W,
+      height: WORLD_H,
       backgroundAlpha: 0,
       antialias: true,
       autoDensity: true,
       resolution: Math.min(devicePixelRatio || 1, 2)
     });
     pixiHost.appendChild(pixiApp.canvas);
-    glowGraphic = new PIXI.Graphics().circle(0, 0, BALL_RADIUS * 1.9).fill({ color: 0x8fe7dd, alpha: .11 });
+    pixiApp.canvas.style.width = '100%';
+    pixiApp.canvas.style.height = '100%';
+
+    glowGraphic = new PIXI.Graphics().circle(0, 0, BALL_RADIUS * 1.9).fill({ color: 0x8fe7dd, alpha: .12 });
     ballGraphic = new PIXI.Graphics().circle(0, 0, BALL_RADIUS).fill(0xf7fbff).stroke({ width: 3, color: 0x9fd3c7, alpha: 1 });
     ballGraphic.addChild(new PIXI.Graphics().circle(-5, -6, 4).fill({ color: 0xffffff, alpha: .9 }));
     pixiApp.stage.addChild(glowGraphic, ballGraphic);
   }
 
-  function worldToScreen(point) {
-    const cx = 300, cy = 300;
-    const dx = point.x - cx, dy = point.y - cy;
-    const c = Math.cos(worldAngle), s = Math.sin(worldAngle);
-    return { x: cx + dx * c - dy * s, y: cy + dx * s + dy * c };
-  }
-
   function updateBallGraphics() {
     if (!ballGraphic) return;
-    const p = worldToScreen(ball.position);
-    const sx = pixiHost.clientWidth / WORLD_W;
-    const sy = pixiHost.clientHeight / WORLD_H;
-    ballGraphic.position.set(p.x * sx, p.y * sy);
-    glowGraphic.position.set(p.x * sx, p.y * sy);
-    ballGraphic.scale.set(sx, sy);
-    glowGraphic.scale.set(sx, sy);
+    ballGraphic.position.set(ball.position.x, ball.position.y);
+    glowGraphic.position.set(ball.position.x, ball.position.y);
+    ballGraphic.rotation = ball.angle;
   }
 
-  function resetGame() {
-    enterRoom(currentRoom);
-  }
+  function resetGame() { enterRoom(currentRoom); }
 
   gameEl.addEventListener('pointerdown', e => {
     gameEl.setPointerCapture?.(e.pointerId);
@@ -180,7 +161,6 @@
       statusEl.textContent = 'Rotate the room and use gravity.';
     }
   });
-
   gameEl.addEventListener('pointermove', e => {
     if (!pointers.has(e.pointerId)) return;
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -189,7 +169,6 @@
       if (current !== null) setWorldAngle(startWorldAngle + normalizeAngle(current - startGestureAngle));
     }
   });
-
   function release(e) {
     pointers.delete(e.pointerId);
     if (pointers.size < 2) {
@@ -197,7 +176,6 @@
       startWorldAngle = worldAngle;
     }
   }
-
   gameEl.addEventListener('pointerup', release);
   gameEl.addEventListener('pointercancel', release);
   gameEl.addEventListener('lostpointercapture', release);
