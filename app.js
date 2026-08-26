@@ -9,7 +9,7 @@
   const resetBtn = document.getElementById('resetBtn');
   const statusEl = document.getElementById('status');
 
-  const { Engine, Bodies, Body, Composite, Events, Vector } = Matter;
+  const { Engine, Bodies, Body, Composite, Vector } = Matter;
 
   const engine = Engine.create({
     gravity: { x: 0, y: 1, scale: 0.0014 }
@@ -42,10 +42,9 @@
     worldAngle = normalizeAngle(angle);
     levelSvg.style.transform = `rotate(${worldAngle}rad)`;
 
-    // Gravity rotates with the apparent world orientation.
-    // At 0 rad it points down. Rotating the world clockwise means
-    // gravity in world coordinates points counter-clockwise.
-    engine.gravity.x = -Math.sin(worldAngle);
+    // The level stays fixed inside Matter and is only rotated visually.
+    // Transform screen-down gravity back into the level's local coordinates.
+    engine.gravity.x = Math.sin(worldAngle);
     engine.gravity.y = Math.cos(worldAngle);
   }
 
