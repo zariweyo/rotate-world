@@ -11,7 +11,10 @@
   <main class="app-shell">
     <section class="game-card" aria-label="Rotate World prototype">
       <header class="hud">
-        <div><p class="eyebrow">ROTATE WORLD</p><h1>Guide the orb</h1></div>
+        <div>
+          <p class="eyebrow">ROTATE WORLD · <span id="levelLabel">LEVEL 1</span></p>
+          <h1>Guide the orb</h1>
+        </div>
         <button id="resetBtn" class="reset-btn" type="button">Reset</button>
       </header>
 
@@ -21,7 +24,8 @@
             <linearGradient id="bgGradient" x1="0" x2="1" y1="0" y2="1"><stop offset="0%" stop-color="#14213d"/><stop offset="55%" stop-color="#243d5a"/><stop offset="100%" stop-color="#172033"/></linearGradient>
             <linearGradient id="platformGradient" x1="0" x2="1"><stop offset="0%" stop-color="#9fd3c7"/><stop offset="100%" stop-color="#65b9ad"/></linearGradient>
             <linearGradient id="platformWarm" x1="0" x2="1"><stop offset="0%" stop-color="#f4c27a"/><stop offset="100%" stop-color="#df8f55"/></linearGradient>
-            <radialGradient id="goalGlow"><stop offset="0%" stop-color="#fff9c4" stop-opacity=".95"/><stop offset="55%" stop-color="#ffd166" stop-opacity=".55"/><stop offset="100%" stop-color="#ffd166" stop-opacity="0"/></radialGradient>
+            <linearGradient id="doorGradient" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="#fff0a6"/><stop offset="100%" stop-color="#d49a35"/></linearGradient>
+            <radialGradient id="doorGlow"><stop offset="0%" stop-color="#ffe9a3" stop-opacity=".9"/><stop offset="55%" stop-color="#ffd166" stop-opacity=".28"/><stop offset="100%" stop-color="#ffd166" stop-opacity="0"/></radialGradient>
             <filter id="softShadow" x="-40%" y="-40%" width="180%" height="180%"><feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#000" flood-opacity=".25"/></filter>
           </defs>
           <rect width="600" height="600" rx="26" fill="url(#bgGradient)"/>
@@ -40,14 +44,22 @@
               <rect data-collider="rect" x="205" y="105" width="155" height="20" rx="10" fill="url(#platformGradient)" transform="rotate(9 282 115)"/>
             </g>
             <g aria-hidden="true" fill="#ef476f" opacity=".85"><path d="M260 485 l13 -20 l13 20z"/><path d="M285 485 l13 -20 l13 20z"/><path d="M350 390 l12 -19 l12 19z"/></g>
-            <g id="goal" transform="translate(105 105)"><circle r="38" fill="url(#goalGlow)"/><circle r="14" fill="none" stroke="#ffe082" stroke-width="4"/><circle r="4" fill="#fff8df"/></g>
+
+            <g id="exitDoor" transform="translate(105 105)">
+              <circle r="48" fill="url(#doorGlow)"/>
+              <path d="M-22 24V-8C-22-27-11-38 0-38S22-27 22-8V24Z" fill="url(#doorGradient)" stroke="#fff0b8" stroke-width="4"/>
+              <path d="M-13 24V-6C-13-18-7-26 0-26S13-18 13-6V24Z" fill="#172033" opacity=".92"/>
+              <circle cx="12" cy="2" r="3" fill="#fff6cc"/>
+              <path d="M-30 27H30" stroke="#f4c27a" stroke-width="6" stroke-linecap="round"/>
+            </g>
+
             <g opacity=".24" fill="#dff7f2"><circle cx="55" cy="555" r="10"/><circle cx="545" cy="545" r="7"/><circle cx="530" cy="275" r="8"/><circle cx="58" cy="170" r="6"/></g>
           </g>
         </svg>
         <div id="pixiLayer" class="pixi-layer" aria-hidden="true"></div>
         <div class="gesture-hint">↻ Rotate with two fingers</div>
       </div>
-      <p class="status" id="status" aria-live="polite">Touch the world with two fingers and twist.</p>
+      <p class="status" id="status" aria-live="polite">Reach the door.</p>
     </section>
   </main>
   <script src="https://cdn.jsdelivr.net/npm/matter-js@0.20.0/build/matter.min.js"></script>
