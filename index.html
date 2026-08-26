@@ -11,98 +11,45 @@
   <main class="app-shell">
     <section class="game-card" aria-label="Rotate World prototype">
       <header class="hud">
-        <div>
-          <p class="eyebrow">ROTATE WORLD</p>
-          <h1>Guide the orb</h1>
-        </div>
+        <div><p class="eyebrow">ROTATE WORLD</p><h1>Guide the orb</h1></div>
         <button id="resetBtn" class="reset-btn" type="button">Reset</button>
       </header>
 
       <div id="game" class="game" aria-label="Game area. Rotate with two fingers.">
-        <svg id="levelSvg" class="level" viewBox="0 0 390 720" role="img" aria-label="A vertical fantasy-mechanical obstacle course">
+        <svg id="levelSvg" class="level" viewBox="0 0 600 600" role="img" aria-label="A square mechanical obstacle world">
           <defs>
-            <linearGradient id="bgGradient" x1="0" x2="1" y1="0" y2="1">
-              <stop offset="0%" stop-color="#14213d" />
-              <stop offset="55%" stop-color="#243d5a" />
-              <stop offset="100%" stop-color="#172033" />
-            </linearGradient>
-            <linearGradient id="platformGradient" x1="0" x2="1">
-              <stop offset="0%" stop-color="#9fd3c7" />
-              <stop offset="100%" stop-color="#65b9ad" />
-            </linearGradient>
-            <linearGradient id="platformWarm" x1="0" x2="1">
-              <stop offset="0%" stop-color="#f4c27a" />
-              <stop offset="100%" stop-color="#df8f55" />
-            </linearGradient>
-            <radialGradient id="goalGlow">
-              <stop offset="0%" stop-color="#fff9c4" stop-opacity="0.95" />
-              <stop offset="55%" stop-color="#ffd166" stop-opacity="0.55" />
-              <stop offset="100%" stop-color="#ffd166" stop-opacity="0" />
-            </radialGradient>
-            <filter id="softShadow" x="-40%" y="-40%" width="180%" height="180%">
-              <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#000" flood-opacity="0.25" />
-            </filter>
+            <linearGradient id="bgGradient" x1="0" x2="1" y1="0" y2="1"><stop offset="0%" stop-color="#14213d"/><stop offset="55%" stop-color="#243d5a"/><stop offset="100%" stop-color="#172033"/></linearGradient>
+            <linearGradient id="platformGradient" x1="0" x2="1"><stop offset="0%" stop-color="#9fd3c7"/><stop offset="100%" stop-color="#65b9ad"/></linearGradient>
+            <linearGradient id="platformWarm" x1="0" x2="1"><stop offset="0%" stop-color="#f4c27a"/><stop offset="100%" stop-color="#df8f55"/></linearGradient>
+            <radialGradient id="goalGlow"><stop offset="0%" stop-color="#fff9c4" stop-opacity=".95"/><stop offset="55%" stop-color="#ffd166" stop-opacity=".55"/><stop offset="100%" stop-color="#ffd166" stop-opacity="0"/></radialGradient>
+            <filter id="softShadow" x="-40%" y="-40%" width="180%" height="180%"><feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#000" flood-opacity=".25"/></filter>
           </defs>
-
-          <rect width="390" height="720" rx="30" fill="url(#bgGradient)" />
-          <g opacity="0.22" fill="#d7f7f1">
-            <circle cx="48" cy="92" r="3" />
-            <circle cx="316" cy="78" r="2" />
-            <circle cx="344" cy="205" r="4" />
-            <circle cx="76" cy="260" r="2" />
-            <circle cx="214" cy="310" r="3" />
-            <circle cx="333" cy="468" r="2.5" />
-            <circle cx="64" cy="552" r="3.5" />
-            <circle cx="262" cy="625" r="2" />
-          </g>
-
-          <g id="world" transform-origin="195px 360px">
-            <g opacity="0.18" stroke="#dff7f2" stroke-width="1">
-              <path d="M40 140 C110 95 165 102 222 142 S330 184 365 138" fill="none" />
-              <path d="M24 425 C90 388 162 405 212 444 S315 482 368 444" fill="none" />
-            </g>
-
+          <rect width="600" height="600" rx="26" fill="url(#bgGradient)"/>
+          <g opacity=".2" fill="#d7f7f1"><circle cx="55" cy="80" r="3"/><circle cx="520" cy="68" r="2"/><circle cx="548" cy="235" r="4"/><circle cx="82" cy="300" r="2"/><circle cx="320" cy="278" r="3"/><circle cx="510" cy="482" r="2.5"/><circle cx="75" cy="530" r="3.5"/></g>
+          <g id="world">
+            <g opacity=".16" stroke="#dff7f2" stroke-width="1" fill="none"><path d="M45 135 C150 75 220 110 300 145 S465 190 555 125"/><path d="M35 410 C125 350 230 405 305 440 S470 475 565 420"/></g>
             <g filter="url(#softShadow)">
-              <rect data-collider="rect" x="36" y="612" width="165" height="18" rx="9" fill="url(#platformGradient)" />
-              <rect data-collider="rect" x="235" y="555" width="122" height="18" rx="9" fill="url(#platformWarm)" transform="rotate(-12 296 564)" />
-              <rect data-collider="rect" x="82" y="500" width="114" height="16" rx="8" fill="url(#platformGradient)" transform="rotate(15 139 508)" />
-              <rect data-collider="rect" x="204" y="430" width="142" height="18" rx="9" fill="url(#platformGradient)" />
-              <rect data-collider="rect" x="46" y="354" width="132" height="18" rx="9" fill="url(#platformWarm)" transform="rotate(-10 112 363)" />
-              <rect data-collider="rect" x="226" y="292" width="118" height="16" rx="8" fill="url(#platformGradient)" transform="rotate(14 285 300)" />
-              <rect data-collider="rect" x="88" y="220" width="122" height="18" rx="9" fill="url(#platformGradient)" />
-              <rect data-collider="rect" x="230" y="155" width="112" height="16" rx="8" fill="url(#platformWarm)" transform="rotate(-13 286 163)" />
-              <rect data-collider="rect" x="70" y="92" width="110" height="18" rx="9" fill="url(#platformGradient)" transform="rotate(10 125 101)" />
+              <rect data-collider="rect" x="54" y="505" width="205" height="20" rx="10" fill="url(#platformGradient)"/>
+              <rect data-collider="rect" x="344" y="475" width="178" height="20" rx="10" fill="url(#platformWarm)" transform="rotate(-12 433 485)"/>
+              <rect data-collider="rect" x="180" y="405" width="170" height="18" rx="9" fill="url(#platformGradient)" transform="rotate(13 265 414)"/>
+              <rect data-collider="rect" x="390" y="338" width="145" height="18" rx="9" fill="url(#platformGradient)"/>
+              <rect data-collider="rect" x="65" y="315" width="155" height="20" rx="10" fill="url(#platformWarm)" transform="rotate(-10 142 325)"/>
+              <rect data-collider="rect" x="260" y="260" width="145" height="18" rx="9" fill="url(#platformGradient)" transform="rotate(14 332 269)"/>
+              <rect data-collider="rect" x="82" y="205" width="158" height="20" rx="10" fill="url(#platformGradient)"/>
+              <rect data-collider="rect" x="375" y="170" width="150" height="18" rx="9" fill="url(#platformWarm)" transform="rotate(-13 450 179)"/>
+              <rect data-collider="rect" x="205" y="105" width="155" height="20" rx="10" fill="url(#platformGradient)" transform="rotate(9 282 115)"/>
             </g>
-
-            <g aria-hidden="true">
-              <path d="M194 592 l12 -18 l12 18 z" fill="#ef476f" opacity="0.85" />
-              <path d="M214 592 l12 -18 l12 18 z" fill="#ef476f" opacity="0.85" />
-              <path d="M184 412 l11 -17 l11 17 z" fill="#ef476f" opacity="0.85" />
-            </g>
-
-            <g id="goal" transform="translate(118 64)">
-              <circle r="34" fill="url(#goalGlow)" />
-              <circle r="13" fill="none" stroke="#ffe082" stroke-width="4" />
-              <circle r="4" fill="#fff8df" />
-            </g>
-
-            <g opacity="0.25" fill="#dff7f2">
-              <circle cx="52" cy="663" r="10" />
-              <circle cx="340" cy="665" r="7" />
-              <circle cx="312" cy="242" r="8" />
-              <circle cx="52" cy="190" r="6" />
-            </g>
+            <g aria-hidden="true" fill="#ef476f" opacity=".85"><path d="M260 485 l13 -20 l13 20z"/><path d="M285 485 l13 -20 l13 20z"/><path d="M350 390 l12 -19 l12 19z"/></g>
+            <g id="goal" transform="translate(105 105)"><circle r="38" fill="url(#goalGlow)"/><circle r="14" fill="none" stroke="#ffe082" stroke-width="4"/><circle r="4" fill="#fff8df"/></g>
+            <g opacity=".24" fill="#dff7f2"><circle cx="55" cy="555" r="10"/><circle cx="545" cy="545" r="7"/><circle cx="530" cy="275" r="8"/><circle cx="58" cy="170" r="6"/></g>
           </g>
         </svg>
-
         <div id="pixiLayer" class="pixi-layer" aria-hidden="true"></div>
         <div class="gesture-hint">↻ Rotate with two fingers</div>
       </div>
-
       <p class="status" id="status" aria-live="polite">Touch the world with two fingers and twist.</p>
     </section>
   </main>
-
   <script src="https://cdn.jsdelivr.net/npm/matter-js@0.20.0/build/matter.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/pixi.js@8.6.6/dist/pixi.min.js"></script>
   <script src="./app.js"></script>
