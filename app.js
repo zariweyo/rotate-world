@@ -18,11 +18,11 @@
 
   const engine = Engine.create({ gravity: { x: 0, y: 1, scale: 0.0014 } });
   const world = engine.world;
-  const pointers = new Map();
+
   let currentRoom = 'A';
   let worldAngle = 0;
-  let startGestureAngle = null;
-  let startWorldAngle = 0;
+  let gestureStartAngle = null;
+  let gestureStartWorldAngle = 0;
   let transitioning = false;
   let roomBodies = [];
 
@@ -34,9 +34,11 @@
     return rad;
   }
 
-  function angleBetweenPointers() {
-    const p = [...pointers.values()];
-    return p.length < 2 ? null : Math.atan2(p[1].y - p[0].y, p[1].x - p[0].x);
+  function touchAngle(touches) {
+    if (touches.length < 2) return null;
+    const a = touches[0];
+    const b = touches[1];
+    return Math.atan2(b.clientY - a.clientY, b.clientX - a.clientX);
   }
 
   function setWorldAngle(angle) {
@@ -55,8 +57,6 @@
     const match = transform.match(/rotate\(([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\)/);
     const angle = match ? degToRad(Number(match[1])) : 0;
 
-    // All current rotated platform SVGs rotate around their own centre.
-    // Matter uses that same centre and angle, so visual and physical shapes match exactly.
     return Bodies.rectangle(x + width / 2, y + height / 2, width, height, {
       isStatic: true,
       angle,
@@ -133,38 +133,35 @@
     enterRoom(currentRoom);
   }
 
-  gameEl.addEventListener('pointerdown', e => {
-    gameEl.setPointerCapture?.(e.pointerId);
-    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (pointers.size === 2) {
-      startGestureAngle = angleBetweenPointers();
-      startWorldAngle = worldAngle;
+  gameEl.addEventListener('touchstart', e => {
+    if (e.touches.length >= 2) {
+      e.preventDefault();
+      gestureStartAngle = touchAngle(e.touches);
+      gestureStartWorldAngle = worldAngle;
       statusEl.textContent = 'Rotate the room and use gravity.';
     }
-  });
+  }, { passive: false });
 
-  gameEl.addEventListener('pointermove', e => {
-    if (!pointers.has(e.pointerId)) return;
-    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (pointers.size === 2 && startGestureAngle !== null) {
-      const current = angleBetweenPointers();
+  gameEl.addEventListener('touchmove', e => {
+    if (e.touches.length >= 2 && gestureStartAngle !== null) {
+      e.preventDefault();
+      const current = touchAngle(e.touches);
       if (current !== null) {
-        setWorldAngle(startWorldAngle + normalizeAngle(current - startGestureAngle));
+        const delta = normalizeAngle(current - gestureStartAngle);
+        setWorldAngle(gestureStartWorldAngle + delta);
       }
     }
-  });
+  }, { passive: false });
 
-  function release(e) {
-    pointers.delete(e.pointerId);
-    if (pointers.size < 2) {
-      startGestureAngle = null;
-      startWorldAngle = worldAngle;
+  function endTouch(e) {
+    if (e.touches.length < 2) {
+      gestureStartAngle = null;
+      gestureStartWorldAngle = worldAngle;
     }
   }
 
-  gameEl.addEventListener('pointerup', release);
-  gameEl.addEventListener('pointercancel', release);
-  gameEl.addEventListener('lostpointercapture', release);
+  gameEl.addEventListener('touchend', endTouch, { passive: false });
+  gameEl.addEventListener('touchcancel', endTouch, { passive: false });
   resetBtn.addEventListener('click', resetGame);
 
   let lastTime = performance.now();
