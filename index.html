@@ -4,7 +4,14 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <meta name="theme-color" content="#0b1020" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Rotate World" />
   <title>Rotate World</title>
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="./icon-192.png" />
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
@@ -12,13 +19,16 @@
     <section class="game-card" aria-label="Rotate World prototype">
       <header class="hud">
         <div>
-          <p class="eyebrow">ROTATE WORLD · <span id="levelLabel">ROOM A</span> · <span id="buildCommit">__BUILD_COMMIT__</span></p>
+          <p class="eyebrow">ROTATE WORLD · <span id="levelLabel">ROOM A</span> · <span id="buildCommit">2026-08-26 12:45:43 CEST</span></p>
           <h1>Find the way</h1>
         </div>
-        <button id="resetBtn" class="reset-btn" type="button">Reset</button>
+        <div class="hud-actions">
+          <button id="refreshBtn" class="icon-btn" type="button" aria-label="Refresh app" title="Refresh app">↻</button>
+          <button id="resetBtn" class="reset-btn" type="button">Reset</button>
+        </div>
       </header>
 
-      <div id="game" class="game" aria-label="Game area. Rotate with two fingers.">
+      <div id="game" class="game" aria-label="Game area. Rotate with one finger.">
         <div id="worldStack" class="world-stack">
           <svg id="levelSvg" class="level" viewBox="0 0 600 600" role="img" aria-label="Connected puzzle rooms">
             <defs>
@@ -26,26 +36,51 @@
               <linearGradient id="bgB" x1="0" x2="1" y1="0" y2="1"><stop offset="0%" stop-color="#18352f"/><stop offset="100%" stop-color="#11231f"/></linearGradient>
               <linearGradient id="platformGradient" x1="0" x2="1"><stop offset="0%" stop-color="#9fd3c7"/><stop offset="100%" stop-color="#65b9ad"/></linearGradient>
               <linearGradient id="platformWarm" x1="0" x2="1"><stop offset="0%" stop-color="#f4c27a"/><stop offset="100%" stop-color="#df8f55"/></linearGradient>
-              <linearGradient id="tubeGradient" x1="0" x2="1"><stop offset="0%" stop-color="#70d6c8"/><stop offset="50%" stop-color="#b7f0e8"/><stop offset="100%" stop-color="#4fa99e"/></linearGradient>
+              <radialGradient id="portalCore" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#f7fbff"/><stop offset="38%" stop-color="#69e8d7"/><stop offset="72%" stop-color="#6a63ff"/><stop offset="100%" stop-color="#11091f"/></radialGradient>
+              <linearGradient id="portalRing" x1="0" x2="1" y1="0" y2="1"><stop offset="0%" stop-color="#f9d66b"/><stop offset="42%" stop-color="#70d6c8"/><stop offset="100%" stop-color="#9b7cff"/></linearGradient>
               <filter id="softShadow" x="-40%" y="-40%" width="180%" height="180%"><feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#000" flood-opacity=".25"/></filter>
+              <filter id="portalGlow" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="7" result="blur"/><feColorMatrix in="blur" type="matrix" values="0 0 0 0 0.36 0 0 0 0 0.9 0 0 0 0 0.86 0 0 0 .75 0"/><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter>
             </defs>
 
             <g id="roomA" data-room="A">
               <rect width="600" height="600" rx="26" fill="url(#bgA)"/>
-              <g opacity=".18" fill="#d7f7f1"><circle cx="55" cy="80" r="3"/><circle cx="520" cy="68" r="2"/><circle cx="548" cy="235" r="4"/><circle cx="82" cy="300" r="2"/><circle cx="510" cy="482" r="2.5"/></g>
-              <g filter="url(#softShadow)">
-                <rect data-room-collider="A" x="54" y="505" width="205" height="20" rx="10" fill="url(#platformGradient)"/>
-                <rect data-room-collider="A" x="344" y="475" width="178" height="20" rx="10" fill="url(#platformWarm)" transform="rotate(-12 433 485)"/>
-                <rect data-room-collider="A" x="180" y="405" width="170" height="18" rx="9" fill="url(#platformGradient)" transform="rotate(13 265 414)"/>
-                <rect data-room-collider="A" x="390" y="338" width="145" height="18" rx="9" fill="url(#platformGradient)"/>
-                <rect data-room-collider="A" x="65" y="315" width="155" height="20" rx="10" fill="url(#platformWarm)" transform="rotate(-10 142 325)"/>
-                <rect data-room-collider="A" x="260" y="260" width="145" height="18" rx="9" fill="url(#platformGradient)" transform="rotate(14 332 269)"/>
-                <rect data-room-collider="A" x="82" y="205" width="158" height="20" rx="10" fill="url(#platformGradient)"/>
+              <g opacity=".18" fill="#d7f7f1"><circle cx="55" cy="80" r="3"/><circle cx="520" cy="68" r="2"/><circle cx="548" cy="235" r="4"/><circle cx="82" cy="300" r="2"/><circle cx="510" cy="482" r="2.5"/><circle cx="282" cy="172" r="3"/><circle cx="318" cy="542" r="2"/></g>
+              <g class="maze-floor" opacity=".18" fill="none" stroke="#d7f7f1" stroke-width="2">
+                <path d="M66 532 H520 V482 H80 V430 H520 V378 H80 V326 H520 V274 H80 V222 H520 V170 H80 V118 H532 V68" stroke-linecap="round" stroke-linejoin="round"/>
               </g>
-              <g id="tubeA" transform="translate(455 92)">
-                <rect x="-32" y="-70" width="64" height="92" rx="9" fill="url(#tubeGradient)" stroke="#d9fff8" stroke-width="4"/>
-                <rect x="-43" y="12" width="86" height="24" rx="8" fill="#70d6c8" stroke="#d9fff8" stroke-width="4"/>
-                <rect x="-30" y="29" width="60" height="17" fill="#091715" opacity=".85"/>
+              <g class="maze-walls" filter="url(#softShadow)">
+                <rect data-room-collider="A" x="24" y="24" width="552" height="14" rx="7" fill="url(#platformGradient)"/>
+                <rect data-room-collider="A" x="24" y="562" width="552" height="14" rx="7" fill="url(#platformGradient)"/>
+                <rect data-room-collider="A" x="24" y="24" width="14" height="552" rx="7" fill="url(#platformGradient)"/>
+                <rect data-room-collider="A" x="562" y="24" width="14" height="552" rx="7" fill="url(#platformGradient)"/>
+
+                <rect data-room-collider="A" x="38" y="508" width="454" height="14" rx="7" fill="url(#platformWarm)"/>
+                <rect data-room-collider="A" x="546" y="508" width="16" height="14" rx="7" fill="url(#platformWarm)"/>
+                <rect data-room-collider="A" x="38" y="456" width="16" height="14" rx="7" fill="url(#platformGradient)"/>
+                <rect data-room-collider="A" x="108" y="456" width="454" height="14" rx="7" fill="url(#platformGradient)"/>
+                <rect data-room-collider="A" x="38" y="404" width="454" height="14" rx="7" fill="url(#platformWarm)"/>
+                <rect data-room-collider="A" x="546" y="404" width="16" height="14" rx="7" fill="url(#platformWarm)"/>
+                <rect data-room-collider="A" x="38" y="352" width="16" height="14" rx="7" fill="url(#platformGradient)"/>
+                <rect data-room-collider="A" x="108" y="352" width="454" height="14" rx="7" fill="url(#platformGradient)"/>
+                <rect data-room-collider="A" x="38" y="300" width="454" height="14" rx="7" fill="url(#platformWarm)"/>
+                <rect data-room-collider="A" x="546" y="300" width="16" height="14" rx="7" fill="url(#platformWarm)"/>
+                <rect data-room-collider="A" x="38" y="248" width="16" height="14" rx="7" fill="url(#platformGradient)"/>
+                <rect data-room-collider="A" x="108" y="248" width="454" height="14" rx="7" fill="url(#platformGradient)"/>
+                <rect data-room-collider="A" x="38" y="196" width="454" height="14" rx="7" fill="url(#platformWarm)"/>
+                <rect data-room-collider="A" x="546" y="196" width="16" height="14" rx="7" fill="url(#platformWarm)"/>
+                <rect data-room-collider="A" x="38" y="144" width="16" height="14" rx="7" fill="url(#platformGradient)"/>
+                <rect data-room-collider="A" x="108" y="144" width="454" height="14" rx="7" fill="url(#platformGradient)"/>
+                <rect data-room-collider="A" x="38" y="92" width="454" height="14" rx="7" fill="url(#platformWarm)"/>
+                <rect data-room-collider="A" x="546" y="92" width="16" height="14" rx="7" fill="url(#platformWarm)"/>
+
+              </g>
+              <g id="portalA" class="portal" transform="translate(532 68)" filter="url(#portalGlow)">
+                <circle class="portal-halo" r="62" fill="#70d6c8" opacity=".18"/>
+                <circle class="portal-core" r="43" fill="url(#portalCore)"/>
+                <circle class="portal-ring" r="52" fill="none" stroke="url(#portalRing)" stroke-width="8"/>
+                <circle class="portal-ring portal-ring-fast" r="32" fill="none" stroke="#d9fff8" stroke-width="4" stroke-dasharray="20 15 6 18"/>
+                <path class="portal-arc" d="M -50 0 A 50 50 0 0 1 0 -50 A 50 50 0 0 1 50 0" fill="none" stroke="#f9d66b" stroke-width="5" stroke-linecap="round"/>
+                <path class="portal-arc portal-arc-reverse" d="M 38 29 A 48 48 0 0 1 -45 16" fill="none" stroke="#9b7cff" stroke-width="5" stroke-linecap="round"/>
               </g>
             </g>
 
@@ -57,14 +92,16 @@
           <div id="pixiLayer" class="pixi-layer" aria-hidden="true"></div>
         </div>
 
-        <div class="gesture-hint">↻ Rotate with two fingers</div>
+        <div class="gesture-hint">↻ Drag to rotate</div>
       </div>
-      <p class="status" id="status" aria-live="polite">Align test: ball + room + collisions.</p>
+      <p class="status" id="status" aria-live="polite">Maze run: fall through the gaps and reach the portal.</p>
     </section>
   </main>
 
-  <script src="https://cdn.jsdelivr.net/npm/matter-js@0.20.0/build/matter.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/pixi.js@8.6.6/dist/pixi.min.js"></script>
+  <script src="./build-info.js?v=20260826124543"></script>
+  <script src="https://cdn.jsdelivr.net/npm/matter-js@0.20.0/build/matter.min.js?rw=20260826124543"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pixi.js@8.6.6/dist/pixi.min.js?rw=20260826124543"></script>
+  <script src="./settings.js"></script>
   <script src="./app.js"></script>
 </body>
 </html>

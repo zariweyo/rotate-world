@@ -22,9 +22,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Inject build commit
+      - name: Inject build info
         shell: bash
-        run: sed -i "s/__BUILD_COMMIT__/${GITHUB_SHA::7}/g" index.html
+        run: |
+          build_updated_at="$(TZ=Europe/Madrid date '+%Y-%m-%d %H:%M:%S %Z')"
+          cache_bust="$(TZ=Europe/Madrid date '+%Y%m%d%H%M%S')"
+          short_sha="${GITHUB_SHA::7}"
+
+          sed -i "s/updatedAt: '.*'/updatedAt: '${build_updated_at}'/g" build-info.js
+          sed -i "s/cacheBust: '.*'/cacheBust: '${cache_bust}'/g" build-info.js
+          sed -i "s/commit: '.*'/commit: '${short_sha}'/g" build-info.js
+          sed -i "s/<span id=\"buildCommit\">.*<\/span>/<span id=\"buildCommit\">${build_updated_at} · ${short_sha}<\/span>/g" index.html
+          sed -i "s/v=[0-9]\{14\}/v=${cache_bust}/g" index.html
+          sed -i "s/rw=[0-9]\{14\}/rw=${cache_bust}/g" index.html
+          sed -i "s/rotate-world-v[0-9]-[0-9]\{14\}/rotate-world-v3-${cache_bust}/g" sw.js
 
       - name: Configure Pages
         uses: actions/configure-pages@v5

@@ -2,16 +2,21 @@
   const WORLD_W = 600;
   const WORLD_H = 600;
   const BALL_RADIUS = 16;
-  const START = { x: 118, y: 475 };
+  const START = { x: 66, y: 532 };
 
   const gameEl = document.getElementById('game');
   const worldStack = document.getElementById('worldStack');
   const pixiHost = document.getElementById('pixiLayer');
   const resetBtn = document.getElementById('resetBtn');
+  const refreshBtn = document.getElementById('refreshBtn');
   const statusEl = document.getElementById('status');
+  const buildCommitEl = document.getElementById('buildCommit');
   const { Engine, Bodies, Body, Composite } = Matter;
 
   const engine = Engine.create();
+  engine.positionIterations = 10;
+  engine.velocityIterations = 8;
+  engine.constraintIterations = 4;
   engine.gravity.x = 0;
   engine.gravity.y = 1;
   engine.gravity.scale = 0.0018;
@@ -22,6 +27,66 @@
   let gestureStartWorldAngle = 0;
 
   const degToRad = d => d * Math.PI / 180;
+  const settings = window.RotateWorldSettings || {};
+  const buildInfo = window.RotateWorldBuild || {};
+  const KEY_ROTATION_STEP = degToRad(settings.keyboardRotationStepDegrees ?? 5);
+  const SCREEN_ORIENTATION_LOCK = settings.screenOrientationLock || 'portrait';
+  const BALL_RESTITUTION = settings.ballRestitution ?? 0.18;
+  const WALL_RESTITUTION = settings.wallRestitution ?? 0.05;
+  let orientationLockRequested = false;
+
+  function registerServiceWorker() {
+    if (!('serviceWorker' in navigator)) return;
+
+    navigator.serviceWorker.register('./sw.js').catch(error => {
+      console.warn('Service worker registration failed:', error);
+    });
+  }
+
+  function requestPortraitOrientationLock() {
+    if (orientationLockRequested) return;
+    orientationLockRequested = true;
+
+    if (!screen.orientation?.lock) return;
+
+    screen.orientation.lock(SCREEN_ORIENTATION_LOCK).catch(() => {
+      orientationLockRequested = false;
+    });
+  }
+
+  function renderBuildInfo() {
+    if (!buildCommitEl) return;
+
+    const commit = buildInfo.commit && buildInfo.commit !== '__BUILD_COMMIT__'
+      ? ` · ${buildInfo.commit}`
+      : '';
+    buildCommitEl.textContent = `${buildInfo.updatedAt || 'local'}${commit}`;
+  }
+
+  function getDisplayMode() {
+    if (window.matchMedia('(display-mode: fullscreen)').matches) return 'fullscreen';
+    if (window.matchMedia('(display-mode: standalone)').matches) return 'standalone';
+    if (window.navigator.standalone) return 'standalone';
+    return 'browser';
+  }
+
+  async function refreshApp() {
+    statusEl.textContent = 'Refreshing app...';
+
+    if ('serviceWorker' in navigator) {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(registrations.map(registration => registration.update()));
+    }
+
+    if ('caches' in window) {
+      const keys = await caches.keys();
+      await Promise.all(keys.map(key => caches.delete(key)));
+    }
+
+    const url = new URL(window.location.href);
+    url.searchParams.set('refresh', Date.now().toString());
+    window.location.replace(url.toString());
+  }
 
   function normalizeAngle(rad) {
     while (rad > Math.PI) rad -= Math.PI * 2;
@@ -29,7 +94,19 @@
     return rad;
   }
 
+  function angleFromPoint(clientX, clientY) {
+    const rect = gameEl.getBoundingClientRect();
+    return Math.atan2(
+      clientY - (rect.top + rect.height / 2),
+      clientX - (rect.left + rect.width / 2)
+    );
+  }
+
   function angleFromTouches(touches) {
+    if (touches.length === 1) {
+      return angleFromPoint(touches[0].clientX, touches[0].clientY);
+    }
+
     if (touches.length < 2) return null;
     return Math.atan2(
       touches[1].clientY - touches[0].clientY,
@@ -57,25 +134,26 @@
       isStatic: true,
       angle,
       friction: 0.45,
-      restitution: 0.05,
-      chamfer: { radius: Math.min(height / 2, 8) }
+      restitution: WALL_RESTITUTION,
+      slop: 0
     });
   }
 
   const platforms = [...document.querySelectorAll('[data-room-collider="A"]')].map(createPlatform);
   const walls = [
-    Bodies.rectangle(300, -15, 660, 30, { isStatic: true }),
-    Bodies.rectangle(300, 615, 660, 30, { isStatic: true }),
-    Bodies.rectangle(-15, 300, 30, 660, { isStatic: true }),
-    Bodies.rectangle(615, 300, 30, 660, { isStatic: true })
+    Bodies.rectangle(300, 12, 660, 48, { isStatic: true, slop: 0 }),
+    Bodies.rectangle(300, 588, 660, 48, { isStatic: true, slop: 0 }),
+    Bodies.rectangle(12, 300, 48, 660, { isStatic: true, slop: 0 }),
+    Bodies.rectangle(588, 300, 48, 660, { isStatic: true, slop: 0 })
   ];
 
   const ball = Bodies.circle(START.x, START.y, BALL_RADIUS, {
-    restitution: 0.18,
+    restitution: BALL_RESTITUTION,
     friction: 0.025,
     frictionStatic: 0.35,
     frictionAir: 0.002,
-    density: 0.0024
+    density: 0.0024,
+    slop: 0.01
   });
 
   Composite.add(world, [...walls, ...platforms, ball]);
@@ -128,11 +206,13 @@
     Body.setAngularVelocity(ball, 0);
     Body.setAngle(ball, 0);
     setWorldAngle(0);
-    statusEl.textContent = 'Align test: ball + room + collisions.';
+    statusEl.textContent = `Maze run: fall through the gaps and reach the portal. Mode: ${getDisplayMode()}.`;
   }
 
   gameEl.addEventListener('touchstart', event => {
-    if (event.touches.length === 2) {
+    requestPortraitOrientationLock();
+
+    if (event.touches.length === 1 || event.touches.length === 2) {
       event.preventDefault();
       gestureStartAngle = angleFromTouches(event.touches);
       gestureStartWorldAngle = worldAngle;
@@ -140,7 +220,7 @@
   }, { passive: false });
 
   gameEl.addEventListener('touchmove', event => {
-    if (event.touches.length === 2 && gestureStartAngle !== null) {
+    if ((event.touches.length === 1 || event.touches.length === 2) && gestureStartAngle !== null) {
       event.preventDefault();
       const current = angleFromTouches(event.touches);
       if (current !== null) {
@@ -150,7 +230,7 @@
   }, { passive: false });
 
   gameEl.addEventListener('touchend', event => {
-    if (event.touches.length < 2) {
+    if (event.touches.length === 0) {
       gestureStartAngle = null;
       gestureStartWorldAngle = worldAngle;
     }
@@ -161,16 +241,46 @@
     gestureStartWorldAngle = worldAngle;
   });
 
-  resetBtn.addEventListener('click', resetBall);
+  resetBtn.addEventListener('click', () => {
+    requestPortraitOrientationLock();
+    resetBall();
+  });
+
+  refreshBtn.addEventListener('click', () => {
+    refreshApp().catch(error => {
+      console.error(error);
+      window.location.reload();
+    });
+  });
+
+  window.addEventListener('keydown', event => {
+    if (event.defaultPrevented) return;
+
+    if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      requestPortraitOrientationLock();
+      setWorldAngle(worldAngle - KEY_ROTATION_STEP);
+    }
+
+    if (event.key === 'ArrowRight') {
+      event.preventDefault();
+      requestPortraitOrientationLock();
+      setWorldAngle(worldAngle + KEY_ROTATION_STEP);
+    }
+  });
 
   let previous = performance.now();
   function frame(now) {
     const delta = Math.min(Math.max(now - previous, 8), 24);
     previous = now;
-    Engine.update(engine, delta);
+    Engine.update(engine, delta / 2);
+    Engine.update(engine, delta / 2);
     updateBallGraphics();
     requestAnimationFrame(frame);
   }
+
+  renderBuildInfo();
+  registerServiceWorker();
 
   initPixi().then(() => {
     resetBall();

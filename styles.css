@@ -9,7 +9,10 @@
 
 html, body {
   margin: 0;
+  width: 100%;
+  height: 100%;
   min-height: 100%;
+  overflow: hidden;
   background:
     radial-gradient(circle at 20% 10%, rgba(62, 96, 145, 0.22), transparent 38%),
     linear-gradient(180deg, #0b1020 0%, #070b14 100%);
@@ -17,21 +20,55 @@ html, body {
 }
 
 body {
-  min-height: 100vh;
-  padding: max(18px, env(safe-area-inset-top)) 14px max(18px, env(safe-area-inset-bottom));
+  position: fixed;
+  inset: 0;
+  min-height: 100dvh;
+  padding: max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom));
+  touch-action: none;
 }
 
 button { font: inherit; }
 
-.app-shell { width: min(100%, 560px); margin: 0 auto; }
-.game-card { width: 100%; }
+.hud-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.icon-btn {
+  width: 44px;
+  height: 44px;
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 12px;
+  background: rgba(255,255,255,0.08);
+  color: white;
+  cursor: pointer;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.icon-btn:active { transform: translateY(1px); }
+
+.app-shell {
+  width: min(100%, 560px);
+  height: 100%;
+  margin: 0 auto;
+}
+
+.game-card {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 10px;
+}
 
 .hud {
   display: flex;
   align-items: end;
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 12px;
+  margin-bottom: 0;
 }
 
 .eyebrow {
@@ -63,7 +100,11 @@ h1 {
 
 .game {
   position: relative;
-  width: 100%;
+  width: auto;
+  height: min(100%, calc(100vw - 24px));
+  max-width: 100%;
+  align-self: center;
+  justify-self: center;
   aspect-ratio: 1;
   overflow: hidden;
   touch-action: none;
@@ -96,6 +137,36 @@ h1 {
 .pixi-layer { pointer-events: none; }
 .pixi-layer canvas { display: block; }
 
+.portal {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.portal-halo {
+  animation: portalPulse 1.8s ease-in-out infinite;
+}
+
+.portal-core {
+  animation: portalCore 1.35s ease-in-out infinite alternate;
+}
+
+.portal-ring,
+.portal-arc {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: portalSpin 2.8s linear infinite;
+}
+
+.portal-ring-fast {
+  animation-duration: 1.45s;
+  animation-direction: reverse;
+}
+
+.portal-arc-reverse {
+  animation-duration: 2.1s;
+  animation-direction: reverse;
+}
+
 .gesture-hint {
   position: absolute;
   left: 50%;
@@ -115,7 +186,7 @@ h1 {
 }
 
 .status {
-  margin: 12px 6px 0;
+  margin: 0 6px;
   min-height: 22px;
   color: rgba(255,255,255,0.62);
   font-size: 13px;
@@ -124,6 +195,19 @@ h1 {
 }
 
 @media (min-width: 700px) {
-  body { padding-top: 28px; }
   .app-shell { width: min(100%, 560px); }
+}
+
+@keyframes portalSpin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes portalPulse {
+  0%, 100% { opacity: .13; }
+  50% { opacity: .35; }
+}
+
+@keyframes portalCore {
+  from { opacity: .82; }
+  to { opacity: 1; }
 }

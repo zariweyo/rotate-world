@@ -1,0 +1,20 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Rotate World: Local server (Chrome)",
+      "type": "pwa-chrome",
+      "request": "launch",
+      "url": "http://127.0.0.1:8001/",
+      "webRoot": "${workspaceFolder}",
+      "preLaunchTask": "Serve Rotate World locally"
+    },
+    {
+      "name": "Rotate World: index.html (Chrome)",
+      "type": "pwa-chrome",
+      "request": "launch",
+      "file": "${workspaceFolder}/index.html",
+      "webRoot": "${workspaceFolder}"
+    }
+  ]
+}
