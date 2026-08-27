@@ -1,0 +1,10 @@
+version: 1
+
+rooms:
+  A:
+    path: levelA.yaml
+    next: B
+  B:
+    path: levelB.yaml
+    next: C
+    

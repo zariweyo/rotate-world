@@ -1,0 +1,58 @@
+version: 1
+
+config:
+    name: Serpentine Maze
+    size: 600
+    ball:
+      diameter: 20
+
+    generation:
+      fitToWorld: true
+      mergeAdjacentWalls: true
+      borderPolicy: closed
+
+    map:
+      - "####################"
+      - "#S.................#"
+      - "#################..#"
+      - "#..................#"
+      - "#..#################"
+      - "#..................#"
+      - "#################..#"
+      - "#..................#"
+      - "############..######"
+      - "#..................#"
+      - "#################..#"
+      - "#..................#"
+      - "############..######"
+      - "#..................#"
+      - "#################..#"
+      - "#..................#"
+      - "############..######"
+      - "#P......#..........#"
+      - "#####..##########..#"
+      - "#..................#"
+      - "####################"
+
+    legend:
+      "#":
+        type: wall
+        material: stone
+      ".":
+        type: empty
+      "S":
+        type: start
+      "P":
+        type: portal
+        animation: blackHole
+
+    materials:
+      stone:
+        visual: platformGradient
+        thickness: 12
+        restitution: settings.wallRestitution
+        friction: 0.45
+
+    notes:
+      - Current SVG room A expressed as an editable ASCII maze.
+      - The runtime still uses the hand-authored SVG until a YAML loader is added.

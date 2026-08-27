@@ -19,7 +19,7 @@
     <section class="game-card" aria-label="Rotate World prototype">
       <header class="hud">
         <div>
-          <p class="eyebrow">ROTATE WORLD · <span id="levelLabel">ROOM A</span> · <span id="buildCommit">2026-08-26 12:45:43 CEST</span></p>
+          <p class="eyebrow">ROTATE WORLD · <span id="levelLabel">ROOM A</span> · <span id="buildCommit">2026-08-27 03:32:57 CEST</span></p>
           <h1>Find the way</h1>
         </div>
         <div class="hud-actions">
@@ -45,43 +45,6 @@
             <g id="roomA" data-room="A">
               <rect width="600" height="600" rx="26" fill="url(#bgA)"/>
               <g opacity=".18" fill="#d7f7f1"><circle cx="55" cy="80" r="3"/><circle cx="520" cy="68" r="2"/><circle cx="548" cy="235" r="4"/><circle cx="82" cy="300" r="2"/><circle cx="510" cy="482" r="2.5"/><circle cx="282" cy="172" r="3"/><circle cx="318" cy="542" r="2"/></g>
-              <g class="maze-floor" opacity=".18" fill="none" stroke="#d7f7f1" stroke-width="2">
-                <path d="M66 532 H520 V482 H80 V430 H520 V378 H80 V326 H520 V274 H80 V222 H520 V170 H80 V118 H532 V68" stroke-linecap="round" stroke-linejoin="round"/>
-              </g>
-              <g class="maze-walls" filter="url(#softShadow)">
-                <rect data-room-collider="A" x="24" y="24" width="552" height="14" rx="7" fill="url(#platformGradient)"/>
-                <rect data-room-collider="A" x="24" y="562" width="552" height="14" rx="7" fill="url(#platformGradient)"/>
-                <rect data-room-collider="A" x="24" y="24" width="14" height="552" rx="7" fill="url(#platformGradient)"/>
-                <rect data-room-collider="A" x="562" y="24" width="14" height="552" rx="7" fill="url(#platformGradient)"/>
-
-                <rect data-room-collider="A" x="38" y="508" width="454" height="14" rx="7" fill="url(#platformWarm)"/>
-                <rect data-room-collider="A" x="546" y="508" width="16" height="14" rx="7" fill="url(#platformWarm)"/>
-                <rect data-room-collider="A" x="38" y="456" width="16" height="14" rx="7" fill="url(#platformGradient)"/>
-                <rect data-room-collider="A" x="108" y="456" width="454" height="14" rx="7" fill="url(#platformGradient)"/>
-                <rect data-room-collider="A" x="38" y="404" width="454" height="14" rx="7" fill="url(#platformWarm)"/>
-                <rect data-room-collider="A" x="546" y="404" width="16" height="14" rx="7" fill="url(#platformWarm)"/>
-                <rect data-room-collider="A" x="38" y="352" width="16" height="14" rx="7" fill="url(#platformGradient)"/>
-                <rect data-room-collider="A" x="108" y="352" width="454" height="14" rx="7" fill="url(#platformGradient)"/>
-                <rect data-room-collider="A" x="38" y="300" width="454" height="14" rx="7" fill="url(#platformWarm)"/>
-                <rect data-room-collider="A" x="546" y="300" width="16" height="14" rx="7" fill="url(#platformWarm)"/>
-                <rect data-room-collider="A" x="38" y="248" width="16" height="14" rx="7" fill="url(#platformGradient)"/>
-                <rect data-room-collider="A" x="108" y="248" width="454" height="14" rx="7" fill="url(#platformGradient)"/>
-                <rect data-room-collider="A" x="38" y="196" width="454" height="14" rx="7" fill="url(#platformWarm)"/>
-                <rect data-room-collider="A" x="546" y="196" width="16" height="14" rx="7" fill="url(#platformWarm)"/>
-                <rect data-room-collider="A" x="38" y="144" width="16" height="14" rx="7" fill="url(#platformGradient)"/>
-                <rect data-room-collider="A" x="108" y="144" width="454" height="14" rx="7" fill="url(#platformGradient)"/>
-                <rect data-room-collider="A" x="38" y="92" width="454" height="14" rx="7" fill="url(#platformWarm)"/>
-                <rect data-room-collider="A" x="546" y="92" width="16" height="14" rx="7" fill="url(#platformWarm)"/>
-
-              </g>
-              <g id="portalA" class="portal" transform="translate(532 68)" filter="url(#portalGlow)">
-                <circle class="portal-halo" r="62" fill="#70d6c8" opacity=".18"/>
-                <circle class="portal-core" r="43" fill="url(#portalCore)"/>
-                <circle class="portal-ring" r="52" fill="none" stroke="url(#portalRing)" stroke-width="8"/>
-                <circle class="portal-ring portal-ring-fast" r="32" fill="none" stroke="#d9fff8" stroke-width="4" stroke-dasharray="20 15 6 18"/>
-                <path class="portal-arc" d="M -50 0 A 50 50 0 0 1 0 -50 A 50 50 0 0 1 50 0" fill="none" stroke="#f9d66b" stroke-width="5" stroke-linecap="round"/>
-                <path class="portal-arc portal-arc-reverse" d="M 38 29 A 48 48 0 0 1 -45 16" fill="none" stroke="#9b7cff" stroke-width="5" stroke-linecap="round"/>
-              </g>
             </g>
 
             <g id="roomB" data-room="B" style="display:none">
@@ -92,15 +55,16 @@
           <div id="pixiLayer" class="pixi-layer" aria-hidden="true"></div>
         </div>
 
-        <div class="gesture-hint">↻ Drag to rotate</div>
+
       </div>
       <p class="status" id="status" aria-live="polite">Maze run: fall through the gaps and reach the portal.</p>
     </section>
   </main>
 
-  <script src="./build-info.js?v=20260826124543"></script>
-  <script src="https://cdn.jsdelivr.net/npm/matter-js@0.20.0/build/matter.min.js?rw=20260826124543"></script>
-  <script src="https://cdn.jsdelivr.net/npm/pixi.js@8.6.6/dist/pixi.min.js?rw=20260826124543"></script>
+  <script src="./build-info.js?v=20260827033257"></script>
+  <script src="./levels.generated.js?v=20260827033257"></script>
+  <script src="https://cdn.jsdelivr.net/npm/matter-js@0.20.0/build/matter.min.js?rw=20260827033257"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pixi.js@8.6.6/dist/pixi.min.js?rw=20260827033257"></script>
   <script src="./settings.js"></script>
   <script src="./app.js"></script>
 </body>

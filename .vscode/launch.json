@@ -7,7 +7,7 @@
       "request": "launch",
       "url": "http://127.0.0.1:8001/",
       "webRoot": "${workspaceFolder}",
-      "preLaunchTask": "Serve Rotate World locally"
+      "preLaunchTask": "Build and serve Rotate World locally"
     },
     {
       "name": "Rotate World: index.html (Chrome)",

@@ -2,6 +2,16 @@
   "version": "2.0.0",
   "tasks": [
     {
+      "label": "Build levels from YAML",
+      "type": "shell",
+      "command": "ruby",
+      "args": [
+        "--disable=gems",
+        "scripts/build-levels.rb"
+      ],
+      "problemMatcher": []
+    },
+    {
       "label": "Serve Rotate World locally",
       "type": "shell",
       "command": "python3",
@@ -24,6 +34,15 @@
           "endsPattern": "Serving HTTP on"
         }
       }
+    },
+    {
+      "label": "Build and serve Rotate World locally",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Build levels from YAML",
+        "Serve Rotate World locally"
+      ],
+      "problemMatcher": []
     }
   ]
 }

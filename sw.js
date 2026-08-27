@@ -1,10 +1,14 @@
-const CACHE_NAME = 'rotate-world-v3-20260826124543';
+const CACHE_NAME = 'rotate-world-v3-20260827033257';
 const APP_SHELL = [
   './',
   './index.html',
   './styles.css',
   './build-info.js',
   './settings.js',
+  './levels/levels.yaml',
+  './levels/levelA.yaml',
+  './levels/levelB.yaml',
+  './levels.generated.js',
   './app.js',
   './manifest.json',
   './icon.svg',

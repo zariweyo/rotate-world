@@ -22,6 +22,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Build levels
+        shell: bash
+        run: ruby --disable=gems scripts/build-levels.rb
+
       - name: Inject build info
         shell: bash
         run: |
