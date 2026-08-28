@@ -137,6 +137,18 @@ h1 {
 .pixi-layer { pointer-events: none; }
 .pixi-layer canvas { display: block; }
 
+.platform {
+  transition: opacity 90ms linear, filter 140ms ease;
+}
+
+.timed-break-platform.is-breaking {
+  filter: brightness(1.65) saturate(1.18);
+}
+
+.timed-break-platform.is-broken {
+  pointer-events: none;
+}
+
 .portal {
   transform-box: fill-box;
   transform-origin: center;

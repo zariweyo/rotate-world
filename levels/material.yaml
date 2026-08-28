@@ -1,0 +1,35 @@
+materials:
+      stone:
+        visual: platformGradient
+        color: [130, 203, 191]
+        thickness: 15
+        restitution: 0.5
+        friction: 0.05
+      fleeting_stone:
+        visual: platformGradient
+        color: [255, 255, 255]
+        thickness: 12
+        restitution: 0.5
+        friction: 0.05
+        behavior:
+          type: timed_break
+          break_after_ms: 1200
+          blink_after_ms: 300
+      wedge-right:
+        shape: wedge
+        direction: right
+        slope: 0.45
+        visual: platformWarm
+        color: [244, 194, 122]
+        thickness: 5
+        restitution: 0.25
+        friction: 0.02
+      wedge-left:
+        shape: wedge
+        direction: left
+        slope: 0.45
+        visual: platformWarm
+        color: [244, 194, 122]
+        thickness: 5
+        restitution: 0.25
+        friction: 0.02

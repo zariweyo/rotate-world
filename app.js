@@ -10,7 +10,7 @@
   const statusEl = document.getElementById('status');
   const buildCommitEl = document.getElementById('buildCommit');
   const roomAEl = document.getElementById('roomA');
-  const { Engine, Bodies, Body, Composite } = Matter;
+  const { Engine, Bodies, Body, Composite, Events } = Matter;
 
   const engine = Engine.create();
   engine.positionIterations = 10;
@@ -32,16 +32,22 @@
   const rooms = levels.rooms || {};
   const KEY_ROTATION_STEP = degToRad(settings.keyboardRotationStepDegrees ?? 5);
   const SCREEN_ORIENTATION_LOCK = settings.screenOrientationLock || 'portrait';
-  const BALL_RESTITUTION = settings.ballRestitution ?? 0.18;
-  const WALL_RESTITUTION = settings.wallRestitution ?? 0.05;
   const PORTAL_COOLDOWN_MS = 700;
+  const RESPAWN_BLINK_MS = 3000;
   let currentRoomId = 'A';
   let currentRoom = rooms[currentRoomId];
   let ballRadius = (currentRoom?.ball?.diameter ?? 32) / 2;
   let platforms = [];
   let ball;
+  let previousBallVelocity = { x: 0, y: 0 };
+  let previousBallPosition = null;
   let lastPortalTransitionAt = 0;
+  let blinkUntil = 0;
   let orientationLockRequested = false;
+
+  function platformElementId(id) {
+    return `platform-${id}`;
+  }
 
   function registerServiceWorker() {
     if (!('serviceWorker' in navigator)) return;
@@ -145,6 +151,56 @@
     return value ?? fallback;
   }
 
+  function materialPaint(visual) {
+    return visual ? `url(#${visual})` : 'url(#platformGradient)';
+  }
+
+  function materialFallbackColor(visual) {
+    if (visual === 'platformWarm') return '#f0ad65';
+    return '#82cbbf';
+  }
+
+  function materialColor(color, visual) {
+    if (Array.isArray(color) && color.length === 3) {
+      const rgb = color.map(value => clamp(Number(value) || 0, 0, 255));
+      return `rgb(${rgb.join(', ')})`;
+    }
+
+    return materialFallbackColor(visual);
+  }
+
+  function materialFill(color, visual) {
+    if (Array.isArray(color) && color.length === 3) {
+      return materialColor(color, visual);
+    }
+
+    return materialPaint(visual);
+  }
+
+  function wedgePoints(object) {
+    const x = object.x;
+    const y = object.y;
+    const w = object.width;
+    const h = object.height;
+    const rise = clamp((Number(object.slope) || 1) * w, 1, h);
+    const highY = y + h - rise;
+
+    if (object.direction === 'left') return [[x, highY], [x, y + h], [x + w, y + h]];
+    if (object.direction === 'up') return [[x, y + h], [x + w, y + h], [x + w / 2, highY]];
+    if (object.direction === 'down') return [[x, highY], [x + w, highY], [x + w / 2, y + h]];
+    return [[x, y + h], [x + w, y + h], [x + w, highY]];
+  }
+
+  function wedgePointsAttribute(object) {
+    return wedgePoints(object)
+      .map(([x, y]) => `${x},${y}`)
+      .join(' ');
+  }
+
+  function relativeVertices(points, centerX, centerY) {
+    return points.map(([x, y]) => ({ x: x - centerX, y: y - centerY }));
+  }
+
   function clearGeneratedRoom() {
     roomAEl.querySelectorAll('.maze-floor, .maze-walls, .portal').forEach(element => {
       element.remove();
@@ -183,17 +239,91 @@
       filter: 'url(#softShadow)'
     });
 
-    room.objects.forEach(object => {
-      const fill = object.visual ? `url(#${object.visual})` : 'url(#platformGradient)';
-      wallsGroup.appendChild(createSvgElement('rect', {
-        x: object.x,
-        y: object.y,
-        width: object.width,
-        height: object.height,
-        rx: Math.min(object.thickness ?? 14, object.width, object.height) / 2,
-        fill
-      }));
-    });
+    if (room.visualShapes?.length) {
+      room.visualShapes.forEach(shape => {
+        const fill = materialFill(shape.color, shape.visual);
+        const solidColor = materialColor(shape.color, shape.visual);
+
+        if (shape.type === 'wallBridge' || shape.type === 'wallStroke') {
+          wallsGroup.appendChild(createSvgElement('path', {
+            d: shape.path,
+            fill: 'none',
+            stroke: solidColor,
+            'stroke-width': shape.strokeWidth ?? shape.thickness ?? 12,
+            'stroke-linecap': shape.type === 'wallStroke' ? 'round' : 'butt',
+            'stroke-linejoin': 'miter'
+          }));
+          wallsGroup.appendChild(createSvgElement('path', {
+            d: shape.path,
+            fill: 'none',
+            stroke: fill,
+            'stroke-width': shape.strokeWidth ?? shape.thickness ?? 12,
+            'stroke-linecap': shape.type === 'wallStroke' ? 'round' : 'butt',
+            'stroke-linejoin': 'miter'
+          }));
+          return;
+        }
+
+        if (shape.type === 'wallCap') {
+          wallsGroup.appendChild(createSvgElement('circle', {
+            cx: shape.cx,
+            cy: shape.cy,
+            r: shape.radius,
+            fill
+          }));
+          return;
+        }
+
+        if (shape.type === 'wedge') {
+          wallsGroup.appendChild(createSvgElement('polygon', {
+            id: platformElementId(shape.id),
+            points: wedgePointsAttribute(shape),
+            fill
+          }));
+          return;
+        }
+
+        wallsGroup.appendChild(createSvgElement('rect', {
+          id: platformElementId(shape.id),
+          x: shape.x,
+          y: shape.y,
+          width: shape.width,
+          height: shape.height,
+          rx: shape.radius ?? Math.min(shape.thickness ?? 14, shape.width, shape.height) / 2,
+          fill
+        }));
+      });
+    }
+
+    room.objects
+      .filter(object => object.behavior || !room.visualShapes?.length)
+      .forEach(object => {
+        const fill = materialFill(object.color, object.visual);
+        const className = object.behavior?.type === 'timed_break'
+          ? 'platform timed-break-platform'
+          : 'platform';
+
+        if (object.shape === 'wedge') {
+          wallsGroup.appendChild(createSvgElement('polygon', {
+            id: platformElementId(object.id),
+            class: className,
+            points: wedgePointsAttribute(object),
+            fill
+          }));
+          return;
+        }
+
+        wallsGroup.appendChild(createSvgElement('rect', {
+          id: platformElementId(object.id),
+          class: className,
+          x: object.x,
+          y: object.y,
+          width: object.width,
+          height: object.height,
+          rx: Math.min(object.thickness ?? 14, object.width, object.height) / 2,
+          fill
+        }));
+      });
 
     roomAEl.appendChild(floorGroup);
     roomAEl.appendChild(wallsGroup);
@@ -218,35 +348,169 @@
     });
   }
 
-  function createStaticRect({ x, y, width, height, angle = 0, friction, restitution }) {
-    return Bodies.rectangle(x + width / 2, y + height / 2, width, height, {
+  function createStaticRect({ id, shape = 'rect', direction = 'right', slope, materialName, behavior, x, y, width, height, angle = 0, friction, frictionStatic, restitution }) {
+    const materialRestitution = resolveConfigValue(restitution, 0);
+    const materialFriction = resolveConfigValue(friction, 0.45);
+    const options = {
       isStatic: true,
       angle,
-      friction: resolveConfigValue(friction, 0.45),
-      restitution: resolveConfigValue(restitution, WALL_RESTITUTION),
-      slop: 0
+      friction: materialFriction,
+      frictionStatic: resolveConfigValue(frictionStatic, materialFriction),
+      restitution: materialRestitution,
+      slop: 0,
+      plugin: {
+        materialFriction,
+        materialRestitution,
+        shape,
+        materialName,
+        behavior,
+        breakState: null,
+        elementId: id ? platformElementId(id) : null,
+        rect: { x, y, width, height }
+      }
+    };
+
+    if (shape === 'wedge') {
+      const centerX = x + width / 2;
+      const centerY = y + height / 2;
+      const vertices = relativeVertices(
+        wedgePoints({ x, y, width, height, direction, slope }),
+        centerX,
+        centerY
+      );
+      return Body.create({
+        ...options,
+        position: { x: centerX, y: centerY },
+        vertices
+      });
+    }
+
+    return Bodies.rectangle(x + width / 2, y + height / 2, width, height, options);
+  }
+
+  function clamp(value, min, max) {
+    return Math.min(Math.max(value, min), max);
+  }
+
+  function distanceToSegment(point, start, end) {
+    const segmentX = end.x - start.x;
+    const segmentY = end.y - start.y;
+    const lengthSquared = segmentX * segmentX + segmentY * segmentY;
+    if (lengthSquared <= 0.0001) return Math.hypot(point.x - end.x, point.y - end.y);
+
+    const rawT = ((point.x - start.x) * segmentX + (point.y - start.y) * segmentY) / lengthSquared;
+    const t = clamp(rawT, 0, 1);
+    const closestX = start.x + segmentX * t;
+    const closestY = start.y + segmentY * t;
+    return Math.hypot(point.x - closestX, point.y - closestY);
+  }
+
+  function materialNormalAtBall(rect) {
+    const closestX = clamp(ball.position.x, rect.x, rect.x + rect.width);
+    const closestY = clamp(ball.position.y, rect.y, rect.y + rect.height);
+    let nx = ball.position.x - closestX;
+    let ny = ball.position.y - closestY;
+    const length = Math.hypot(nx, ny);
+
+    if (length > 0.0001) {
+      return { x: nx / length, y: ny / length };
+    }
+
+    nx = ball.position.x - (rect.x + rect.width / 2);
+    ny = ball.position.y - (rect.y + rect.height / 2);
+
+    if (Math.abs(nx) > Math.abs(ny)) {
+      return { x: Math.sign(nx) || 1, y: 0 };
+    }
+
+    return { x: 0, y: Math.sign(ny) || 1 };
+  }
+
+  function applyMaterialBounce(materialBody) {
+    const restitution = materialBody.plugin?.materialRestitution ?? 0;
+    if (materialBody.plugin?.shape !== 'rect') return;
+
+    const rect = materialBody.plugin?.rect;
+    if (!rect || restitution <= 0) return;
+
+    const normal = materialNormalAtBall(rect);
+    const incoming = previousBallVelocity;
+    const normalSpeed = incoming.x * normal.x + incoming.y * normal.y;
+    if (normalSpeed >= 0) return;
+
+    Body.setVelocity(ball, {
+      x: incoming.x - (1 + restitution) * normalSpeed * normal.x,
+      y: incoming.y - (1 + restitution) * normalSpeed * normal.y
     });
   }
 
-  const walls = [
-    Bodies.rectangle(300, 12, 660, 48, { isStatic: true, slop: 0 }),
-    Bodies.rectangle(300, 588, 660, 48, { isStatic: true, slop: 0 }),
-    Bodies.rectangle(12, 300, 48, 660, { isStatic: true, slop: 0 }),
-    Bodies.rectangle(588, 300, 48, 660, { isStatic: true, slop: 0 })
-  ];
+  function triggerTimedBreak(materialBody) {
+    const behavior = materialBody.plugin?.behavior;
+    if (behavior?.type !== 'timed_break') return;
+    if (materialBody.plugin.breakState?.broken) return;
+    if (!platforms.includes(materialBody)) return;
+
+    if (!materialBody.plugin.breakState) {
+      materialBody.plugin.breakState = { touchedAt: performance.now(), broken: false };
+    }
+  }
+
+  function applyMaterialFriction(materialBody) {
+    const friction = materialBody.plugin?.materialFriction;
+    if (materialBody.plugin?.shape !== 'rect') return;
+
+    const rect = materialBody.plugin?.rect;
+    if (!rect || friction === undefined) return;
+
+    const normal = materialNormalAtBall(rect);
+    const tangent = { x: -normal.y, y: normal.x };
+    const tangentSpeed = ball.velocity.x * tangent.x + ball.velocity.y * tangent.y;
+    const damping = clamp(friction, 0, 1) * 0.18;
+
+    Body.setVelocity(ball, {
+      x: ball.velocity.x - tangentSpeed * damping * tangent.x,
+      y: ball.velocity.y - tangentSpeed * damping * tangent.y
+    });
+
+    Body.setAngularVelocity(ball, ball.angularVelocity * (1 - damping * 0.55));
+  }
+
+  Events.on(engine, 'collisionStart', event => {
+    event.pairs.forEach(pair => {
+      if (pair.bodyA === ball) {
+        triggerTimedBreak(pair.bodyB);
+        applyMaterialBounce(pair.bodyB);
+      }
+      if (pair.bodyB === ball) {
+        triggerTimedBreak(pair.bodyA);
+        applyMaterialBounce(pair.bodyA);
+      }
+    });
+  });
+
+  Events.on(engine, 'collisionActive', event => {
+    event.pairs.forEach(pair => {
+      if (pair.bodyA === ball) {
+        triggerTimedBreak(pair.bodyB);
+        applyMaterialFriction(pair.bodyB);
+      }
+      if (pair.bodyB === ball) {
+        triggerTimedBreak(pair.bodyA);
+        applyMaterialFriction(pair.bodyA);
+      }
+    });
+  });
 
   function createBall(x, y, radius) {
     return Bodies.circle(x, y, radius, {
-      restitution: BALL_RESTITUTION,
-      friction: 0.025,
-      frictionStatic: 0.35,
+      restitution: 0,
+      friction: 0,
+      frictionStatic: 0,
       frictionAir: 0.002,
       density: 0.0024,
       slop: 0.01
     });
   }
-
-  Composite.add(world, walls);
 
   const pixiApp = new PIXI.Application();
   let ballGraphic;
@@ -294,14 +558,42 @@
     ballGraphic.position.set(ball.position.x, ball.position.y);
     glowGraphic.position.set(ball.position.x, ball.position.y);
     ballGraphic.rotation = ball.angle;
+
+    const now = performance.now();
+    const isBlinking = now < blinkUntil;
+    const alpha = isBlinking && Math.floor(now / 150) % 2 === 0 ? 0.22 : 1;
+    ballGraphic.alpha = alpha;
+    glowGraphic.alpha = isBlinking ? alpha * 0.7 : 1;
   }
 
-  function resetBall() {
+  function respawnBall({ resetAngle = false, blink = true } = {}) {
     Body.setPosition(ball, currentRoom.start);
     Body.setVelocity(ball, { x: 0, y: 0 });
     Body.setAngularVelocity(ball, 0);
     Body.setAngle(ball, 0);
-    setWorldAngle(0);
+    if (resetAngle) setWorldAngle(0);
+    blinkUntil = blink ? performance.now() + RESPAWN_BLINK_MS : 0;
+  }
+
+  function resetCurrentRoom({ resetAngle = false, blink = true } = {}) {
+    if (ball) Composite.remove(world, ball);
+    platforms.forEach(body => Composite.remove(world, body));
+
+    platforms = currentRoom.objects.map(createStaticRect);
+    ball = createBall(currentRoom.start.x, currentRoom.start.y, ballRadius);
+    previousBallVelocity = { x: 0, y: 0 };
+    previousBallPosition = { x: ball.position.x, y: ball.position.y };
+
+    renderGeneratedRoom(currentRoom);
+    if (ballGraphic) renderBallGraphics();
+    Composite.add(world, [...platforms, ball]);
+    if (resetAngle) setWorldAngle(0);
+    blinkUntil = blink ? performance.now() + RESPAWN_BLINK_MS : 0;
+    lastPortalTransitionAt = performance.now();
+  }
+
+  function resetBall() {
+    resetCurrentRoom({ resetAngle: true, blink: false });
     statusEl.textContent = `${currentRoom.name}: reach the portal. Mode: ${getDisplayMode()}.`;
   }
 
@@ -320,36 +612,86 @@
     currentRoomId = roomId;
     currentRoom = nextRoom;
     ballRadius = (currentRoom.ball?.diameter ?? 32) / 2;
-    platforms = currentRoom.objects.map(createStaticRect);
-    ball = createBall(currentRoom.start.x, currentRoom.start.y, ballRadius);
 
-    renderGeneratedRoom(currentRoom);
-    if (ballGraphic) renderBallGraphics();
-    Composite.add(world, [...platforms, ball]);
+    resetCurrentRoom({ resetAngle: false, blink: false });
     setLevelLabel();
-    setWorldAngle(options.angle ?? 0);
-    lastPortalTransitionAt = performance.now();
+    setWorldAngle(0);
     statusEl.textContent = `${currentRoom.name}: reach the portal.`;
 
     return true;
   }
 
+  function updateTimedBreakables(now) {
+    platforms.slice().forEach(platform => {
+      const behavior = platform.plugin?.behavior;
+      const breakState = platform.plugin?.breakState;
+      if (behavior?.type !== 'timed_break' || !breakState || breakState.broken) return;
+
+      const elapsed = now - breakState.touchedAt;
+      const breakAfter = resolveConfigValue(behavior.break_after_ms, 1200);
+      const blinkAfter = resolveConfigValue(behavior.blink_after_ms, 300);
+      const element = platform.plugin.elementId
+        ? document.getElementById(platform.plugin.elementId)
+        : null;
+
+      if (elapsed >= breakAfter) {
+        breakState.broken = true;
+        if (element) {
+          element.classList.add('is-broken');
+          element.style.opacity = '0';
+        }
+        Composite.remove(world, platform);
+        platforms = platforms.filter(body => body !== platform);
+        return;
+      }
+
+      if (element && elapsed >= blinkAfter) {
+        const blinkStep = Math.floor((elapsed - blinkAfter) / 90);
+        element.classList.add('is-breaking');
+        element.style.opacity = blinkStep % 2 === 0 ? '0.28' : '1';
+      }
+    });
+  }
+
+  function checkFallOut() {
+    if (!ball) return;
+
+    const outsideWorld = ball.position.x < -ballRadius ||
+      ball.position.x > WORLD_W + ballRadius ||
+      ball.position.y < -ballRadius ||
+      ball.position.y > WORLD_H + ballRadius;
+
+    if (!outsideWorld) return;
+
+    resetCurrentRoom({ resetAngle: false, blink: true });
+    statusEl.textContent = `${currentRoom.name}: lost ball. Back to start.`;
+  }
+
   function checkPortalTransitions(now) {
-    if (!currentRoom?.portals || now - lastPortalTransitionAt < PORTAL_COOLDOWN_MS) return;
+    if (!currentRoom?.portals || now - lastPortalTransitionAt < PORTAL_COOLDOWN_MS) return false;
+    if (!ball) return false;
+
+    const currentBallPosition = { x: ball.position.x, y: ball.position.y };
+    const startPosition = previousBallPosition || currentBallPosition;
 
     const portal = currentRoom.portals.find(candidate => {
       if (!candidate.targetRoom) return false;
-      const dx = ball.position.x - candidate.x;
-      const dy = ball.position.y - candidate.y;
-      return Math.hypot(dx, dy) <= (candidate.radius ?? 24) + ballRadius * 0.35;
+      const portalRadius = (candidate.radius ?? 24) + ballRadius;
+      return distanceToSegment(
+        { x: candidate.x, y: candidate.y },
+        startPosition,
+        currentBallPosition
+      ) <= portalRadius;
     });
 
-    if (!portal) return;
+    if (!portal) return false;
 
-    if (!loadRoom(portal.targetRoom, { angle: worldAngle })) {
+    if (!loadRoom(portal.targetRoom)) {
       statusEl.textContent = `Portal target ${portal.targetRoom} is not available yet.`;
       lastPortalTransitionAt = now;
     }
+
+    return true;
   }
 
   gameEl.addEventListener('touchstart', event => {
@@ -416,9 +758,13 @@
   function frame(now) {
     const delta = Math.min(Math.max(now - previous, 8), 24);
     previous = now;
+    if (ball) previousBallPosition = { x: ball.position.x, y: ball.position.y };
+    if (ball) previousBallVelocity = { x: ball.velocity.x, y: ball.velocity.y };
     Engine.update(engine, delta / 2);
+    if (ball) previousBallVelocity = { x: ball.velocity.x, y: ball.velocity.y };
     Engine.update(engine, delta / 2);
-    checkPortalTransitions(now);
+    updateTimedBreakables(now);
+    if (!checkPortalTransitions(now)) checkFallOut();
     updateBallGraphics();
     requestAnimationFrame(frame);
   }

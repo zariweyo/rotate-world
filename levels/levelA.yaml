@@ -13,23 +13,26 @@ config:
 
     map:
       - "####################"
-      - "#S.................#"
-      - "#################..#"
+      - "#..................#"
+      - "#S.....w...........#"
+      - "#########ttt########"
+      - "#..................#"
+      - "#..................#"
       - "#..................#"
       - "#..#################"
       - "#..................#"
-      - "#################..#"
+      - "#####ttt############"
       - "#..................#"
       - "############..######"
       - "#..................#"
       - "#################..#"
       - "#..................#"
       - "############..######"
-      - "#..................#"
+      - "#........P.........#"
       - "#################..#"
       - "#..................#"
       - "############..######"
-      - "#P......#..........#"
+      - "#.......#..........#"
       - "#####..##########..#"
       - "#..................#"
       - "####################"
@@ -38,6 +41,12 @@ config:
       "#":
         type: wall
         material: stone
+      "t":
+        type: wall
+        material: fleeting_stone
+      "w":
+        type: wall
+        material: wedge-right
       ".":
         type: empty
       "S":
@@ -45,14 +54,4 @@ config:
       "P":
         type: portal
         animation: blackHole
-
-    materials:
-      stone:
-        visual: platformGradient
-        thickness: 12
-        restitution: settings.wallRestitution
-        friction: 0.45
-
-    notes:
-      - Current SVG room A expressed as an editable ASCII maze.
-      - The runtime still uses the hand-authored SVG until a YAML loader is added.
+        next: B
