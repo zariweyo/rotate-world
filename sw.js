@@ -1,4 +1,4 @@
-const CACHE_NAME = 'rotate-world-v3-20260827132644';
+const CACHE_NAME = 'rotate-world-v16-boundary-arcs';
 const APP_SHELL = [
   './',
   './index.html',
@@ -10,6 +10,7 @@ const APP_SHELL = [
   './levels/levelA.yaml',
   './levels/levelB.yaml',
   './levels.generated.js',
+  './geometry.js',
   './app.js',
   './manifest.json',
   './icon.svg',

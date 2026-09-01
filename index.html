@@ -12,7 +12,7 @@
   <link rel="manifest" href="./manifest.json" />
   <link rel="icon" href="./icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="./icon-192.png" />
-  <link rel="stylesheet" href="./styles.css?v=20260827132644" />
+  <link rel="stylesheet" href="./styles.css?v=20260830-gears-4" />
 </head>
 <body>
   <main class="app-shell">
@@ -28,9 +28,16 @@
         </div>
       </header>
 
-      <div id="game" class="game" aria-label="Game area. Rotate with one finger.">
-        <div id="worldStack" class="world-stack">
-          <svg id="levelSvg" class="level" viewBox="0 0 600 600" role="img" aria-label="Connected puzzle rooms">
+      <div id="game" class="game" aria-label="Game area. Rotate the lower gear with one finger.">
+        <div id="gearTrain" class="gear-train">
+          <div id="worldGear" class="gear world-gear" aria-label="Circular puzzle world">
+            <svg class="gear-body" viewBox="0 0 600 600" aria-hidden="true">
+              <path id="worldGearShape" class="gear-shape"></path>
+              <circle class="gear-rim" cx="300" cy="300" r="262"></circle>
+            </svg>
+
+            <div id="worldStack" class="world-stack">
+              <svg id="levelSvg" class="level" viewBox="0 0 600 600" role="img" aria-label="Connected puzzle rooms">
             <defs>
               <linearGradient id="bgA" x1="0" x2="1" y1="0" y2="1"><stop offset="0%" stop-color="#14213d"/><stop offset="100%" stop-color="#172033"/></linearGradient>
               <linearGradient id="bgB" x1="0" x2="1" y1="0" y2="1"><stop offset="0%" stop-color="#18352f"/><stop offset="100%" stop-color="#11231f"/></linearGradient>
@@ -50,22 +57,38 @@
             <g id="roomB" data-room="B" style="display:none">
               <rect width="600" height="600" rx="26" fill="url(#bgB)"/>
             </g>
-          </svg>
+              </svg>
 
-          <div id="pixiLayer" class="pixi-layer" aria-hidden="true"></div>
+              <div id="pixiLayer" class="pixi-layer" aria-hidden="true"></div>
+            </div>
+          </div>
+
+          <div id="controlGear" class="gear control-gear" role="slider" tabindex="0" aria-label="World rotation control" aria-valuemin="-180" aria-valuemax="180" aria-valuenow="0">
+            <svg class="gear-body" viewBox="0 0 600 600" aria-hidden="true">
+              <path id="controlGearShape" class="gear-shape control-gear-shape"></path>
+              <circle class="control-ring" cx="300" cy="300" r="226"></circle>
+              <circle class="control-hub" cx="300" cy="300" r="58"></circle>
+              <g class="control-spokes">
+                <rect x="286" y="92" width="28" height="416" rx="14"></rect>
+                <rect x="286" y="92" width="28" height="416" rx="14" transform="rotate(60 300 300)"></rect>
+                <rect x="286" y="92" width="28" height="416" rx="14" transform="rotate(120 300 300)"></rect>
+              </g>
+              <circle class="control-grip" cx="300" cy="112" r="28"></circle>
+            </svg>
+          </div>
         </div>
 
-
       </div>
-      <p class="status" id="status" aria-live="polite">Maze run: fall through the gaps and reach the portal.</p>
+      <p class="status" id="status" aria-live="polite">Turn the lower gear to guide the ball.</p>
     </section>
   </main>
 
   <script src="./build-info.js?v=20260827132644"></script>
-  <script src="./levels.generated.js?v=20260827132644"></script>
+  <script src="./levels.generated.js?v=20260901-boundary-arcs"></script>
   <script src="https://cdn.jsdelivr.net/npm/matter-js@0.20.0/build/matter.min.js?rw=20260827132644"></script>
   <script src="./settings.js?v=20260827132644"></script>
   <script src="https://cdn.jsdelivr.net/npm/pixi.js@8.6.6/dist/pixi.min.js?rw=20260827132644"></script>
-  <script src="./app.js?v=20260827132644"></script>
+  <script src="./geometry.js?v=20260901-boundary-arcs"></script>
+  <script src="./app.js?v=20260901-boundary-arcs"></script>
 </body>
 </html>

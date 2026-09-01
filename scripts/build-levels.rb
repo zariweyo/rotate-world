@@ -71,15 +71,21 @@ def material_shape(material)
   material['shape'] || 'rect'
 end
 
-def merge_wall_rects(rows, wall_symbols, materials)
+def merge_wall_rects(rows, wall_symbols, materials, exclude_boundary: false)
   height = rows.length
   width = rows.first.length
   visited = Array.new(height) { Array.new(width, false) }
   rects = []
 
+  wall_at = lambda do |x, y|
+    return nil if exclude_boundary && (x.zero? || y.zero? || x == width - 1 || y == height - 1)
+
+    wall_symbols[rows[y][x]]
+  end
+
   rows.each_with_index do |row, y|
     row.chars.each_with_index do |char, x|
-      material = wall_symbols[char]
+      material = wall_at.call(x, y)
       next unless material
       next if visited[y][x]
 
@@ -87,7 +93,7 @@ def merge_wall_rects(rows, wall_symbols, materials)
       rect_width = 1
       if shape == 'rect'
         rect_width += 1 while x + rect_width < width &&
-                             wall_symbols[rows[y][x + rect_width]] == material &&
+                             wall_at.call(x + rect_width, y) == material &&
                              !visited[y][x + rect_width]
       end
 
@@ -98,7 +104,7 @@ def merge_wall_rects(rows, wall_symbols, materials)
           break if next_y >= height
 
           can_extend = (0...rect_width).all? do |dx|
-            wall_symbols[rows[next_y][x + dx]] == material && !visited[next_y][x + dx]
+            wall_at.call(x + dx, next_y) == material && !visited[next_y][x + dx]
           end
           break unless can_extend
 
@@ -125,6 +131,72 @@ def merge_wall_rects(rows, wall_symbols, materials)
   end
 
   rects
+end
+
+def build_boundary_walls(rows, wall_symbols, materials, room_id, size, tile_width, tile_height)
+  height = rows.length
+  width = rows.first.length
+  perimeter = size * 4.0
+  edges = []
+
+  width.times do |x|
+    edges << [x * tile_width, (x + 1) * tile_width, wall_symbols[rows[0][x]]]
+  end
+  height.times do |y|
+    edges << [size + y * tile_height, size + (y + 1) * tile_height, wall_symbols[rows[y][width - 1]]]
+  end
+  width.times do |offset|
+    x = width - 1 - offset
+    edges << [size * 2 + offset * tile_width, size * 2 + (offset + 1) * tile_width, wall_symbols[rows[height - 1][x]]]
+  end
+  height.times do |offset|
+    y = height - 1 - offset
+    edges << [size * 3 + offset * tile_height, size * 3 + (offset + 1) * tile_height, wall_symbols[rows[y][0]]]
+  end
+
+  runs = []
+  edges.each do |start_distance, end_distance, material_name|
+    next if material_name.nil?
+
+    current = runs.last
+    if current && current.fetch('material') == material_name &&
+       (current.fetch('endDistance') - start_distance).abs < 0.001
+      current['endDistance'] = end_distance
+    else
+      runs << {
+        'material' => material_name,
+        'startDistance' => start_distance,
+        'endDistance' => end_distance
+      }
+    end
+  end
+
+  if runs.length > 1 && runs.first.fetch('startDistance').zero? &&
+     (runs.last.fetch('endDistance') - perimeter).abs < 0.001 &&
+     runs.first.fetch('material') == runs.last.fetch('material')
+    runs.last['endDistance'] = runs.first.fetch('endDistance') + perimeter
+    runs.shift
+  end
+
+  runs.each_with_index.map do |run, index|
+    material_name = run.fetch('material')
+    material = materials.fetch(material_name)
+    {
+      'type' => 'wall',
+      'id' => "#{room_id}-#{material_name}-boundary-#{index + 1}",
+      'shape' => 'boundaryArc',
+      'perimeterStart' => run.fetch('startDistance') / perimeter,
+      'perimeterEnd' => run.fetch('endDistance') / perimeter,
+      'visual' => material['visual'],
+      'color' => material['color'],
+      'materialName' => material_name,
+      'thickness' => material.fetch('thickness'),
+      'friction' => material['friction'],
+      'frictionStatic' => material['frictionStatic'] || material['friction'],
+      'restitution' => material_setting(material['restitution']),
+      'behavior' => material['behavior']
+    }
+  end
 end
 
 def material_setting(value)
@@ -195,113 +267,6 @@ def object_geometry(rect, tile_width, tile_height, material, rows = nil, wall_sy
   wall_geometry(rect, tile_width, tile_height, material)
 end
 
-def build_visual_shapes(rows, wall_symbols, wall_rects, tile_width, tile_height, materials, room_id)
-  shapes = wall_rects.each_with_index.map do |rect, index|
-    material_name = rect.fetch('material')
-    material = materials.fetch(material_name)
-    next if material['behavior']
-
-    geometry = object_geometry(rect, tile_width, tile_height, material, rows, wall_symbols, materials)
-    if material_shape(material) == 'wedge'
-      next geometry.merge(
-        'type' => 'wedge',
-        'id' => "#{room_id}-#{material_name}-wall-#{index + 1}",
-        'material' => material_name,
-        'visual' => material['visual'],
-        'color' => material['color'],
-        'thickness' => material['thickness'],
-        'direction' => material['direction'] || 'right',
-        'slope' => material['slope']
-      )
-    end
-
-    geometry.merge(
-      'type' => 'wallBlock',
-      'id' => "#{room_id}-#{material_name}-wall-#{index + 1}",
-      'material' => material_name,
-      'visual' => material['visual'],
-      'color' => material['color'],
-      'thickness' => material.fetch('thickness'),
-      'radius' => 0
-    )
-  end.compact
-
-  bridges = Hash.new { |hash, material| hash[material] = [] }
-  caps = []
-  height = rows.length
-  width = rows.first.length
-
-  rows.each_with_index do |row, y|
-    row.chars.each_with_index do |char, x|
-      material_name = wall_symbols[char]
-      next unless material_name
-
-      material = materials.fetch(material_name)
-      next if material['behavior']
-      next unless material_shape(material) == 'rect'
-
-      center_x = (x + 0.5) * tile_width
-      center_y = (y + 0.5) * tile_height
-      neighbours = []
-
-      [[-1, 0], [1, 0], [0, -1], [0, 1]].each do |dx, dy|
-        neighbour_x = x + dx
-        neighbour_y = y + dy
-        next if neighbour_x.negative? || neighbour_x >= width
-        next if neighbour_y.negative? || neighbour_y >= height
-        next unless wall_symbols[rows[neighbour_y][neighbour_x]] == material_name
-
-        neighbours << [dx, dy]
-      end
-
-      if x + 1 < width && wall_symbols[rows[y][x + 1]] == material_name
-        bridges[material_name] << "M#{center_x.round(3)} #{center_y.round(3)}L#{(center_x + tile_width).round(3)} #{center_y.round(3)}"
-      end
-
-      if y + 1 < height && wall_symbols[rows[y + 1][x]] == material_name
-        bridges[material_name] << "M#{center_x.round(3)} #{center_y.round(3)}L#{center_x.round(3)} #{(center_y + tile_height).round(3)}"
-      end
-
-      cap_points = if neighbours.length == 1
-                     dx, dy = neighbours.first
-                     [[center_x - dx * tile_width / 2.0, center_y - dy * tile_height / 2.0]]
-                   elsif neighbours.empty?
-                     [[center_x - tile_width / 2.0, center_y], [center_x + tile_width / 2.0, center_y]]
-                   else
-                     []
-                   end
-
-      cap_points.each do |cap_x, cap_y|
-        caps << {
-          'type' => 'wallCap',
-          'cx' => cap_x,
-          'cy' => cap_y,
-          'radius' => material.fetch('thickness') / 2.0,
-          'material' => material_name,
-          'visual' => material['visual'],
-          'color' => material['color']
-        }
-      end
-    end
-  end
-
-  bridges.each do |material_name, paths|
-    next if paths.empty?
-
-    material = materials.fetch(material_name)
-    shapes << {
-      'type' => 'wallBridge',
-      'path' => paths.join,
-      'strokeWidth' => material.fetch('thickness'),
-      'material' => material_name,
-      'visual' => material['visual'],
-      'color' => material['color']
-    }
-  end
-
-  shapes.concat(caps)
-end
-
 compiled_rooms = {}
 skipped_rooms = []
 
@@ -328,17 +293,16 @@ rooms.each do |room_id, flow_config|
 
   raise "Room has exactly one S start tile requirement failed" unless start_tiles.length == 1
 
-  wall_rects = merge_wall_rects(rows, walls, materials)
-  visual_shapes = build_visual_shapes(
+  wall_rects = merge_wall_rects(rows, walls, materials, exclude_boundary: true)
+  boundary_walls = build_boundary_walls(
     rows,
     walls,
-    wall_rects,
-    tile_width,
-    tile_height,
     materials,
-    room_id
+    room_id,
+    size,
+    tile_width,
+    tile_height
   )
-
   compiled_rooms[room_id] = {
     'id' => room_id,
     'name' => room['name'],
@@ -386,8 +350,7 @@ rooms.each do |room_id, flow_config|
 
       portal_entries
     end,
-    'visualShapes' => visual_shapes,
-    'objects' => wall_rects.each_with_index.map do |rect, index|
+    'objects' => boundary_walls + wall_rects.each_with_index.map do |rect, index|
       material = materials.fetch(rect.fetch('material'))
       rect.merge(
         object_geometry(rect, tile_width, tile_height, material, rows, walls, materials)

@@ -3,7 +3,11 @@
   const WORLD_H = 600;
 
   const gameEl = document.getElementById('game');
-  const worldStack = document.getElementById('worldStack');
+  const gearTrain = document.getElementById('gearTrain');
+  const worldGear = document.getElementById('worldGear');
+  const controlGear = document.getElementById('controlGear');
+  const worldGearShape = document.getElementById('worldGearShape');
+  const controlGearShape = document.getElementById('controlGearShape');
   const pixiHost = document.getElementById('pixiLayer');
   const resetBtn = document.getElementById('resetBtn');
   const refreshBtn = document.getElementById('refreshBtn');
@@ -14,7 +18,7 @@
 
   const engine = Engine.create();
   engine.positionIterations = 10;
-  engine.velocityIterations = 8;
+  engine.velocityIterations = 10;
   engine.constraintIterations = 4;
   engine.gravity.x = 0;
   engine.gravity.y = 1;
@@ -24,6 +28,7 @@
   let worldAngle = 0;
   let gestureStartAngle = null;
   let gestureStartWorldAngle = 0;
+  let activePointerId = null;
 
   const degToRad = d => d * Math.PI / 180;
   const settings = window.RotateWorldSettings || {};
@@ -34,12 +39,33 @@
   const SCREEN_ORIENTATION_LOCK = settings.screenOrientationLock || 'portrait';
   const PORTAL_COOLDOWN_MS = 700;
   const RESPAWN_BLINK_MS = 3000;
+  const WORLD_RADIUS = 300;
+  // Interior content and JSON-defined boundary walls share the same circular edge.
+  const CONTENT_RADIUS = WORLD_RADIUS;
+  const CONTENT_VERTICAL_SCALE = 0.9;
+  const WARP_SAMPLE_LENGTH = 18;
+  const PHYSICS_SUBSTEPS = 4;
+  const MAX_BALL_SPEED = 8;
+  const GEAR_TEETH = 28;
+  const GEAR_MESH_OFFSET = Math.PI / GEAR_TEETH;
+  const GEAR_TRAIN_RATIO = 1.951;
+  const geometryProjector = RotateWorldGeometry.createProjector({
+    worldWidth: WORLD_W,
+    worldHeight: WORLD_H,
+    contentRadius: CONTENT_RADIUS,
+    verticalScale: CONTENT_VERTICAL_SCALE,
+    sampleLength: WARP_SAMPLE_LENGTH
+  });
+  const {
+    projectPoint: warpPoint,
+    horizontalScale: warpHorizontalScale
+  } = geometryProjector;
   let currentRoomId = 'A';
   let currentRoom = rooms[currentRoomId];
   let ballRadius = (currentRoom?.ball?.diameter ?? 32) / 2;
+  let roomGeometry = [];
   let platforms = [];
   let ball;
-  let previousBallVelocity = { x: 0, y: 0 };
   let previousBallPosition = null;
   let lastPortalTransitionAt = 0;
   let blinkUntil = 0;
@@ -108,31 +134,70 @@
     return rad;
   }
 
-  function angleFromPoint(clientX, clientY) {
-    const rect = gameEl.getBoundingClientRect();
+  function angleFromControlPoint(clientX, clientY) {
+    const rect = controlGear.getBoundingClientRect();
     return Math.atan2(
       clientY - (rect.top + rect.height / 2),
       clientX - (rect.left + rect.width / 2)
     );
   }
 
-  function angleFromTouches(touches) {
-    if (touches.length === 1) {
-      return angleFromPoint(touches[0].clientX, touches[0].clientY);
+  function layoutGearTrain() {
+    const gameRect = gameEl.getBoundingClientRect();
+    const viewportWidth = document.documentElement.clientWidth;
+    const horizontalPadding = 24;
+    const gearSize = Math.max(0, Math.min(
+      viewportWidth - horizontalPadding,
+      gameRect.height / GEAR_TRAIN_RATIO
+    ));
+
+    gearTrain.style.left = `${viewportWidth / 2 - gameRect.left}px`;
+    gearTrain.style.width = `${gearSize}px`;
+  }
+
+  function createGearPath(teeth = GEAR_TEETH, outerRadius = 294, rootRadius = 270) {
+    const points = [];
+    const steps = teeth * 4;
+    const halfStep = Math.PI / steps;
+
+    for (let index = 0; index < steps; index += 1) {
+      const phase = index % 4;
+      const radius = phase === 1 || phase === 2 ? outerRadius : rootRadius;
+      const angle = -Math.PI / 2 + halfStep + index * Math.PI * 2 / steps;
+      points.push(`${300 + Math.cos(angle) * radius},${300 + Math.sin(angle) * radius}`);
     }
 
-    if (touches.length < 2) return null;
-    return Math.atan2(
-      touches[1].clientY - touches[0].clientY,
-      touches[1].clientX - touches[0].clientX
-    );
+    return `M ${points.join(' L ')} Z`;
   }
 
   function setWorldAngle(angle) {
     worldAngle = normalizeAngle(angle);
-    worldStack.style.transform = `translate(-50%, -50%) rotate(${worldAngle}rad)`;
+    worldGear.style.transform = `rotate(${worldAngle}rad)`;
+    controlGear.style.transform = `rotate(${GEAR_MESH_OFFSET - worldAngle}rad)`;
+    controlGear.setAttribute('aria-valuenow', String(Math.round(worldAngle * 180 / Math.PI)));
     engine.gravity.x = Math.sin(worldAngle);
     engine.gravity.y = Math.cos(worldAngle);
+  }
+
+  function pointInsideWorld(point, inset = 0) {
+    return Math.hypot(point.x - WORLD_W / 2, point.y - WORLD_H / 2) <= WORLD_RADIUS - inset;
+  }
+
+  function fitPointInsideWorld(point, inset = 0) {
+    if (pointInsideWorld(point, inset)) return { x: point.x, y: point.y };
+
+    const dx = point.x - WORLD_W / 2;
+    const dy = point.y - WORLD_H / 2;
+    const length = Math.hypot(dx, dy) || 1;
+    const radius = WORLD_RADIUS - inset;
+    return {
+      x: WORLD_W / 2 + dx / length * radius,
+      y: WORLD_H / 2 + dy / length * radius
+    };
+  }
+
+  function pointsAttribute(points) {
+    return points.map(point => `${point.x},${point.y}`).join(' ');
   }
 
   function createSvgElement(name, attributes = {}) {
@@ -177,37 +242,13 @@
     return materialPaint(visual);
   }
 
-  function wedgePoints(object) {
-    const x = object.x;
-    const y = object.y;
-    const w = object.width;
-    const h = object.height;
-    const rise = clamp((Number(object.slope) || 1) * w, 1, h);
-    const highY = y + h - rise;
-
-    if (object.direction === 'left') return [[x, highY], [x, y + h], [x + w, y + h]];
-    if (object.direction === 'up') return [[x, y + h], [x + w, y + h], [x + w / 2, highY]];
-    if (object.direction === 'down') return [[x, highY], [x + w, highY], [x + w / 2, y + h]];
-    return [[x, y + h], [x + w, y + h], [x + w, highY]];
-  }
-
-  function wedgePointsAttribute(object) {
-    return wedgePoints(object)
-      .map(([x, y]) => `${x},${y}`)
-      .join(' ');
-  }
-
-  function relativeVertices(points, centerX, centerY) {
-    return points.map(([x, y]) => ({ x: x - centerX, y: y - centerY }));
-  }
-
   function clearGeneratedRoom() {
     roomAEl.querySelectorAll('.maze-floor, .maze-walls, .portal').forEach(element => {
       element.remove();
     });
   }
 
-  function renderGeneratedRoom(room) {
+  function renderGeneratedRoom(room, geometries) {
     if (!room) return;
 
     clearGeneratedRoom();
@@ -224,9 +265,13 @@
       row.split('').forEach((char, colIndex) => {
         if (char !== '.') return;
 
+        const floorPoint = warpPoint({
+            x: (colIndex + 0.5) * room.tileWidth,
+            y: (rowIndex + 0.5) * room.tileHeight
+          });
         floorGroup.appendChild(createSvgElement('circle', {
-          cx: (colIndex + 0.5) * room.tileWidth,
-          cy: (rowIndex + 0.5) * room.tileHeight,
+          cx: floorPoint.x,
+          cy: floorPoint.y,
           r: Math.min(room.tileWidth, room.tileHeight) * 0.08,
           fill: '#d7f7f1',
           opacity: 0.45
@@ -239,100 +284,29 @@
       filter: 'url(#softShadow)'
     });
 
-    if (room.visualShapes?.length) {
-      room.visualShapes.forEach(shape => {
-        const fill = materialFill(shape.color, shape.visual);
-        const solidColor = materialColor(shape.color, shape.visual);
+    geometries.forEach(({ object, outline }) => {
+      const fill = materialFill(object.color, object.visual);
+      const className = object.behavior?.type === 'timed_break'
+        ? 'platform timed-break-platform'
+        : 'platform';
 
-        if (shape.type === 'wallBridge' || shape.type === 'wallStroke') {
-          wallsGroup.appendChild(createSvgElement('path', {
-            d: shape.path,
-            fill: 'none',
-            stroke: solidColor,
-            'stroke-width': shape.strokeWidth ?? shape.thickness ?? 12,
-            'stroke-linecap': shape.type === 'wallStroke' ? 'round' : 'butt',
-            'stroke-linejoin': 'miter'
-          }));
-          wallsGroup.appendChild(createSvgElement('path', {
-            d: shape.path,
-            fill: 'none',
-            stroke: fill,
-            'stroke-width': shape.strokeWidth ?? shape.thickness ?? 12,
-            'stroke-linecap': shape.type === 'wallStroke' ? 'round' : 'butt',
-            'stroke-linejoin': 'miter'
-          }));
-          return;
-        }
-
-        if (shape.type === 'wallCap') {
-          wallsGroup.appendChild(createSvgElement('circle', {
-            cx: shape.cx,
-            cy: shape.cy,
-            r: shape.radius,
-            fill
-          }));
-          return;
-        }
-
-        if (shape.type === 'wedge') {
-          wallsGroup.appendChild(createSvgElement('polygon', {
-            id: platformElementId(shape.id),
-            points: wedgePointsAttribute(shape),
-            fill
-          }));
-          return;
-        }
-
-        wallsGroup.appendChild(createSvgElement('rect', {
-          id: platformElementId(shape.id),
-          x: shape.x,
-          y: shape.y,
-          width: shape.width,
-          height: shape.height,
-          rx: shape.radius ?? Math.min(shape.thickness ?? 14, shape.width, shape.height) / 2,
-          fill
-        }));
-      });
-    }
-
-    room.objects
-      .filter(object => object.behavior || !room.visualShapes?.length)
-      .forEach(object => {
-        const fill = materialFill(object.color, object.visual);
-        const className = object.behavior?.type === 'timed_break'
-          ? 'platform timed-break-platform'
-          : 'platform';
-
-        if (object.shape === 'wedge') {
-          wallsGroup.appendChild(createSvgElement('polygon', {
-            id: platformElementId(object.id),
-            class: className,
-            points: wedgePointsAttribute(object),
-            fill
-          }));
-          return;
-        }
-
-        wallsGroup.appendChild(createSvgElement('rect', {
-          id: platformElementId(object.id),
-          class: className,
-          x: object.x,
-          y: object.y,
-          width: object.width,
-          height: object.height,
-          rx: Math.min(object.thickness ?? 14, object.width, object.height) / 2,
-          fill
-        }));
-      });
+      wallsGroup.appendChild(createSvgElement('polygon', {
+        id: platformElementId(object.id),
+        class: className,
+        points: pointsAttribute(outline),
+        fill
+      }));
+    });
 
     roomAEl.appendChild(floorGroup);
     roomAEl.appendChild(wallsGroup);
 
     room.portals.forEach(portal => {
+      const portalPosition = warpPoint(portal);
       const portalGroup = createSvgElement('g', {
         id: portal.id || 'portalA',
         class: 'portal',
-        transform: `translate(${portal.x} ${portal.y})`,
+        transform: `translate(${portalPosition.x} ${portalPosition.y}) scale(${warpHorizontalScale(portal.y)} ${CONTENT_VERTICAL_SCALE})`,
         filter: 'url(#portalGlow)'
       });
 
@@ -348,44 +322,40 @@
     });
   }
 
-  function createStaticRect({ id, shape = 'rect', direction = 'right', slope, materialName, behavior, x, y, width, height, angle = 0, friction, frictionStatic, restitution }) {
+  function createStaticPlatform(geometry) {
+    const { object, convexParts } = geometry;
+    const { id, shape = 'rect', materialName, behavior, friction, frictionStatic, restitution } = object;
     const materialRestitution = resolveConfigValue(restitution, 0);
     const materialFriction = resolveConfigValue(friction, 0.45);
-    const options = {
-      isStatic: true,
-      angle,
+    const bodyOptions = {
       friction: materialFriction,
       frictionStatic: resolveConfigValue(frictionStatic, materialFriction),
       restitution: materialRestitution,
-      slop: 0,
-      plugin: {
-        materialFriction,
-        materialRestitution,
-        shape,
-        materialName,
-        behavior,
-        breakState: null,
-        elementId: id ? platformElementId(id) : null,
-        rect: { x, y, width, height }
-      }
+      slop: 0
+    };
+    const parts = convexParts.map(vertices => {
+      const center = geometryProjector.polygonCentroid(vertices);
+      const part = Bodies.rectangle(center.x, center.y, 1, 1, bodyOptions);
+      Body.setVertices(part, vertices);
+      return part;
+    });
+    const body = parts.length === 1
+      ? parts[0]
+      : Body.create({ ...bodyOptions, parts });
+    const platformData = {
+      shape,
+      materialName,
+      behavior,
+      breakState: null,
+      elementId: id ? platformElementId(id) : null,
+      platformBody: body
     };
 
-    if (shape === 'wedge') {
-      const centerX = x + width / 2;
-      const centerY = y + height / 2;
-      const vertices = relativeVertices(
-        wedgePoints({ x, y, width, height, direction, slope }),
-        centerX,
-        centerY
-      );
-      return Body.create({
-        ...options,
-        position: { x: centerX, y: centerY },
-        vertices
-      });
-    }
-
-    return Bodies.rectangle(x + width / 2, y + height / 2, width, height, options);
+    Body.setStatic(body, true);
+    body.parts.forEach(part => {
+      part.plugin = platformData;
+    });
+    return body;
   }
 
   function clamp(value, min, max) {
@@ -405,46 +375,8 @@
     return Math.hypot(point.x - closestX, point.y - closestY);
   }
 
-  function materialNormalAtBall(rect) {
-    const closestX = clamp(ball.position.x, rect.x, rect.x + rect.width);
-    const closestY = clamp(ball.position.y, rect.y, rect.y + rect.height);
-    let nx = ball.position.x - closestX;
-    let ny = ball.position.y - closestY;
-    const length = Math.hypot(nx, ny);
-
-    if (length > 0.0001) {
-      return { x: nx / length, y: ny / length };
-    }
-
-    nx = ball.position.x - (rect.x + rect.width / 2);
-    ny = ball.position.y - (rect.y + rect.height / 2);
-
-    if (Math.abs(nx) > Math.abs(ny)) {
-      return { x: Math.sign(nx) || 1, y: 0 };
-    }
-
-    return { x: 0, y: Math.sign(ny) || 1 };
-  }
-
-  function applyMaterialBounce(materialBody) {
-    const restitution = materialBody.plugin?.materialRestitution ?? 0;
-    if (materialBody.plugin?.shape !== 'rect') return;
-
-    const rect = materialBody.plugin?.rect;
-    if (!rect || restitution <= 0) return;
-
-    const normal = materialNormalAtBall(rect);
-    const incoming = previousBallVelocity;
-    const normalSpeed = incoming.x * normal.x + incoming.y * normal.y;
-    if (normalSpeed >= 0) return;
-
-    Body.setVelocity(ball, {
-      x: incoming.x - (1 + restitution) * normalSpeed * normal.x,
-      y: incoming.y - (1 + restitution) * normalSpeed * normal.y
-    });
-  }
-
   function triggerTimedBreak(materialBody) {
+    materialBody = materialBody?.plugin?.platformBody || materialBody;
     const behavior = materialBody.plugin?.behavior;
     if (behavior?.type !== 'timed_break') return;
     if (materialBody.plugin.breakState?.broken) return;
@@ -455,48 +387,13 @@
     }
   }
 
-  function applyMaterialFriction(materialBody) {
-    const friction = materialBody.plugin?.materialFriction;
-    if (materialBody.plugin?.shape !== 'rect') return;
-
-    const rect = materialBody.plugin?.rect;
-    if (!rect || friction === undefined) return;
-
-    const normal = materialNormalAtBall(rect);
-    const tangent = { x: -normal.y, y: normal.x };
-    const tangentSpeed = ball.velocity.x * tangent.x + ball.velocity.y * tangent.y;
-    const damping = clamp(friction, 0, 1) * 0.18;
-
-    Body.setVelocity(ball, {
-      x: ball.velocity.x - tangentSpeed * damping * tangent.x,
-      y: ball.velocity.y - tangentSpeed * damping * tangent.y
-    });
-
-    Body.setAngularVelocity(ball, ball.angularVelocity * (1 - damping * 0.55));
-  }
-
   Events.on(engine, 'collisionStart', event => {
     event.pairs.forEach(pair => {
       if (pair.bodyA === ball) {
         triggerTimedBreak(pair.bodyB);
-        applyMaterialBounce(pair.bodyB);
       }
       if (pair.bodyB === ball) {
         triggerTimedBreak(pair.bodyA);
-        applyMaterialBounce(pair.bodyA);
-      }
-    });
-  });
-
-  Events.on(engine, 'collisionActive', event => {
-    event.pairs.forEach(pair => {
-      if (pair.bodyA === ball) {
-        triggerTimedBreak(pair.bodyB);
-        applyMaterialFriction(pair.bodyB);
-      }
-      if (pair.bodyB === ball) {
-        triggerTimedBreak(pair.bodyA);
-        applyMaterialFriction(pair.bodyA);
       }
     });
   });
@@ -566,8 +463,21 @@
     glowGraphic.alpha = isBlinking ? alpha * 0.7 : 1;
   }
 
+  function constrainBallSpeed() {
+    if (!ball) return;
+
+    const speed = Math.hypot(ball.velocity.x, ball.velocity.y);
+    if (!Number.isFinite(speed) || speed <= MAX_BALL_SPEED) return;
+
+    const scale = MAX_BALL_SPEED / speed;
+    Body.setVelocity(ball, {
+      x: ball.velocity.x * scale,
+      y: ball.velocity.y * scale
+    });
+  }
+
   function respawnBall({ resetAngle = false, blink = true } = {}) {
-    Body.setPosition(ball, currentRoom.start);
+    Body.setPosition(ball, fitPointInsideWorld(warpPoint(currentRoom.start), ballRadius + 22));
     Body.setVelocity(ball, { x: 0, y: 0 });
     Body.setAngularVelocity(ball, 0);
     Body.setAngle(ball, 0);
@@ -579,12 +489,15 @@
     if (ball) Composite.remove(world, ball);
     platforms.forEach(body => Composite.remove(world, body));
 
-    platforms = currentRoom.objects.map(createStaticRect);
-    ball = createBall(currentRoom.start.x, currentRoom.start.y, ballRadius);
-    previousBallVelocity = { x: 0, y: 0 };
+    roomGeometry = currentRoom.objects
+      .map(object => geometryProjector.objectGeometry(object));
+    const roomPlatforms = roomGeometry.map(createStaticPlatform);
+    platforms = roomPlatforms;
+    const start = fitPointInsideWorld(warpPoint(currentRoom.start), ballRadius + 22);
+    ball = createBall(start.x, start.y, ballRadius);
     previousBallPosition = { x: ball.position.x, y: ball.position.y };
 
-    renderGeneratedRoom(currentRoom);
+    renderGeneratedRoom(currentRoom, roomGeometry);
     if (ballGraphic) renderBallGraphics();
     Composite.add(world, [...platforms, ball]);
     if (resetAngle) setWorldAngle(0);
@@ -656,10 +569,7 @@
   function checkFallOut() {
     if (!ball) return;
 
-    const outsideWorld = ball.position.x < -ballRadius ||
-      ball.position.x > WORLD_W + ballRadius ||
-      ball.position.y < -ballRadius ||
-      ball.position.y > WORLD_H + ballRadius;
+    const outsideWorld = !pointInsideWorld(ball.position, ballRadius);
 
     if (!outsideWorld) return;
 
@@ -677,8 +587,9 @@
     const portal = currentRoom.portals.find(candidate => {
       if (!candidate.targetRoom) return false;
       const portalRadius = (candidate.radius ?? 24) + ballRadius;
+      const portalPosition = warpPoint(candidate);
       return distanceToSegment(
-        { x: candidate.x, y: candidate.y },
+        portalPosition,
         startPosition,
         currentBallPosition
       ) <= portalRadius;
@@ -694,37 +605,34 @@
     return true;
   }
 
-  gameEl.addEventListener('touchstart', event => {
+  controlGear.addEventListener('pointerdown', event => {
     requestPortraitOrientationLock();
-
-    if (event.touches.length === 1 || event.touches.length === 2) {
-      event.preventDefault();
-      gestureStartAngle = angleFromTouches(event.touches);
-      gestureStartWorldAngle = worldAngle;
-    }
-  }, { passive: false });
-
-  gameEl.addEventListener('touchmove', event => {
-    if ((event.touches.length === 1 || event.touches.length === 2) && gestureStartAngle !== null) {
-      event.preventDefault();
-      const current = angleFromTouches(event.touches);
-      if (current !== null) {
-        setWorldAngle(gestureStartWorldAngle + normalizeAngle(current - gestureStartAngle));
-      }
-    }
-  }, { passive: false });
-
-  gameEl.addEventListener('touchend', event => {
-    if (event.touches.length === 0) {
-      gestureStartAngle = null;
-      gestureStartWorldAngle = worldAngle;
-    }
+    event.preventDefault();
+    activePointerId = event.pointerId;
+    gestureStartAngle = angleFromControlPoint(event.clientX, event.clientY);
+    gestureStartWorldAngle = worldAngle;
+    controlGear.setPointerCapture(event.pointerId);
+    controlGear.classList.add('is-dragging');
   });
 
-  gameEl.addEventListener('touchcancel', () => {
+  controlGear.addEventListener('pointermove', event => {
+    if (event.pointerId !== activePointerId || gestureStartAngle === null) return;
+    event.preventDefault();
+    const currentAngle = angleFromControlPoint(event.clientX, event.clientY);
+    const controlDelta = normalizeAngle(currentAngle - gestureStartAngle);
+    setWorldAngle(gestureStartWorldAngle - controlDelta);
+  });
+
+  function endControlGesture(event) {
+    if (event.pointerId !== activePointerId) return;
+    activePointerId = null;
     gestureStartAngle = null;
     gestureStartWorldAngle = worldAngle;
-  });
+    controlGear.classList.remove('is-dragging');
+  }
+
+  controlGear.addEventListener('pointerup', endControlGesture);
+  controlGear.addEventListener('pointercancel', endControlGesture);
 
   resetBtn.addEventListener('click', () => {
     requestPortraitOrientationLock();
@@ -759,10 +667,10 @@
     const delta = Math.min(Math.max(now - previous, 8), 24);
     previous = now;
     if (ball) previousBallPosition = { x: ball.position.x, y: ball.position.y };
-    if (ball) previousBallVelocity = { x: ball.velocity.x, y: ball.velocity.y };
-    Engine.update(engine, delta / 2);
-    if (ball) previousBallVelocity = { x: ball.velocity.x, y: ball.velocity.y };
-    Engine.update(engine, delta / 2);
+    for (let step = 0; step < PHYSICS_SUBSTEPS; step += 1) {
+      constrainBallSpeed();
+      Engine.update(engine, delta / PHYSICS_SUBSTEPS);
+    }
     updateTimedBreakables(now);
     if (!checkPortalTransitions(now)) checkFallOut();
     updateBallGraphics();
@@ -771,12 +679,19 @@
 
   renderBuildInfo();
   registerServiceWorker();
+  layoutGearTrain();
+  window.addEventListener('resize', layoutGearTrain);
+  window.addEventListener('orientationchange', layoutGearTrain);
+  const gearPath = createGearPath();
+  worldGearShape.setAttribute('d', gearPath);
+  controlGearShape.setAttribute('d', gearPath);
+
+  loadRoom('A');
+  requestAnimationFrame(frame);
 
   initPixi().then(() => {
-    loadRoom('A');
     renderBallGraphics();
     updateBallGraphics();
-    requestAnimationFrame(frame);
   }).catch(error => {
     console.error(error);
     statusEl.textContent = 'Pixi could not be initialized.';
